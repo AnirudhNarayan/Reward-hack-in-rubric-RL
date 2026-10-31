@@ -14,12 +14,15 @@ Newton partitions (`sinfo`, `scontrol show partition`):
 | `highgpu` | evc[101-104] | 8x H100 SXM 80GB (`nvidia_h100_80gb_hbm3`), 128 CPUs, ~1 TB | unlimited (default 10 min) | yes, account `abedi` |
 | `normal` (default) | ~40 | 2x H100 PCIe 80GB (`nvidia_h100_pcie`) or 2x V100 16/32GB; 32-64 CPUs | unlimited | yes |
 | `preemptable` | same as `normal` | same | 2 days | yes (QOS preemptable) |
-| `short` | evc105 | 4x H200 NVL (`nvidia_h200_nvl`), 192 CPUs | 4 h | not checked |
+| `short` | evc105 | 4x H200 NVL (`nvidia_h200_nvl`), 192 CPUs | 4 h | no (AllowAccounts=arcc) |
 | `ucfit` | evc105 | same | unlimited | no (arcc, gmartin, ucfit) |
 
 Accounts: `abedi` (QOS normal, ood, preemptable; max 50 jobs) and `course_cap6614`.
 `highgpu` nodes are shared (`OverSubscribe=FORCE:4`) and the partition is open to many groups,
 so expect queue waits for 2-node jobs.
+`preemptable` jobs (PriorityTier 1, PreemptMode CANCEL) are cancelled by `normal` jobs
+(PriorityTier 100) on the same nodes. `highgpu` shares no nodes with another partition, so
+training there is not preempted; never put training on `preemptable`.
 
 ## 1. Inspect each cluster (about 10 minutes, once)
 
