@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "rrh"
+version = "0.1.0"
+description = "Replication of 'Reward Hacking in Rubric-Based Reinforcement Learning' (arXiv:2605.12474)"
+requires-python = ">=3.10"
+dependencies = [
+  "openai>=1.60",
+  "anthropic>=0.40",
+  "pyyaml",
+  "numpy",
+  "scipy",
+  "pandas",
+  "pyarrow",
+  "datasets",
+  "matplotlib",
+  "tqdm",
+]
+
+[project.optional-dependencies]
+# GPU-side extras; verl pins its own torch/vllm, so install those per scripts/setup_env.sh.
+gpu = ["vllm", "transformers"]
+dev = ["pytest"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

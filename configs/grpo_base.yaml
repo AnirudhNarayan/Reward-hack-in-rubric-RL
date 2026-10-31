@@ -1,0 +1,32 @@
+# GRPO configuration (App. B, Table 3), mapped to verl v0.9.x keys by scripts/train_grpo.sh.
+# Values marked (paper) are from Table 3; (ours) are choices the paper does not specify.
+
+policy: meta-llama/Llama-3.1-8B-Instruct   # (ours) Qwen2.5-7B-Instruct not allowed
+nnodes: 2                                   # (paper) 2 x 8 H100
+n_gpus_per_node: 8
+
+optim:
+  lr: 4.2e-6                     # (paper)
+  lr_scheduler_type: constant    # (paper) constant with warmup
+  lr_warmup_steps_ratio: 0.05    # (paper)
+  weight_decay: 0.01             # (paper); AdamW betas (0.9,0.999), eps 1e-8 = torch defaults
+kl:
+  use_kl_loss: true
+  kl_loss_coef: 0.01             # (paper)
+  kl_loss_type: low_var_kl       # (ours) GRPO k3 estimator
+rollout:
+  n: 16                          # (paper) rollouts per prompt
+  temperature: 1.0               # (paper)
+  max_prompt_length: 584         # (paper) 2584 max seq - 2000 response
+  max_response_length: 2000      # (paper)
+batch:
+  # (ours) Table 3: per-device batch 8, grad-accum 1, 16 GPUs -> 128 sequences (= 8 prompts x 16
+  # rollouts) per optimizer update. With 128 prompts per iteration, medical gives
+  # 12,519/128 ~ 98 iterations/epoch -> ~489 over 5 epochs, matching the paper's final step 475.
+  train_batch_size: 128          # prompts per iteration
+  ppo_mini_batch_size: 8         # prompts per optimizer update (x n = 128 sequences)
+  ppo_micro_batch_size_per_gpu: 8
+total_epochs: 5                  # (paper). Science (19,806 prompts) -> ~774 iterations; the paper
+                                 # plots science to step 475 too: set max_steps: 475 to match figures.
+max_steps: null
+save_freq: 25                    # (paper) eval checkpoints every 25 iterations

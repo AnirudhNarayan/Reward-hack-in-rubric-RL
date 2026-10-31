@@ -1,0 +1,16 @@
+.env
+*.env
+configs/local.yaml
+scripts/env.sh
+third_party/
+.cache/
+logs/
+checkpoints/
+runs/
+data/
+*.sqlite
+__pycache__/
+*.egg-info/
+.pytest_cache/
+wandb/
+outputs/

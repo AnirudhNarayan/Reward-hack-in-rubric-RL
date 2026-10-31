@@ -1,0 +1,7 @@
+# Copy to configs/local.yaml (git-ignored). Cluster-specific overrides only.
+paths:
+  cache_dir: /lustre/fs1/home/YOUR_NID/rrh/cache     # LLM response cache (SQLite)
+models:
+  # Raise/lower per-model concurrency to your rate limits, e.g.:
+  # gpt-4o-mini: {concurrency: 128}
+  # claude-opus-4.6: {concurrency: 8}

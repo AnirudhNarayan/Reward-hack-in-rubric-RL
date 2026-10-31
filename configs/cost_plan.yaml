@@ -1,0 +1,33 @@
+# A-priori API cost plan (python -m rrh.utils.cost_cli). Token counts are per-call averages:
+# grader input ~ system (1.1k) + prompt (~150) + response (paper: 2k->5.8k chars ~ 0.5k-1.5k tok)
+# + ~30 rubric items (~1k) ~= 3.5k; output ~ 30 items x ~45 tok ~= 1.4k (+ reasoning for gpt-5.x).
+# Counts follow the paper's protocol: 300 eval prompts x 20 checkpoints (0..475 / 25) x 4 runs.
+# Edit the call counts if you evaluate every 50 steps or fewer runs.
+jobs:
+  - {name: panel_eval_gpt-5.4,         model: gpt-5.4,         calls: 24000, in_tokens: 3500, out_tokens: 3000}
+  - {name: panel_eval_gemini-3-pro,    model: gemini-3-pro,    calls: 24000, in_tokens: 3500, out_tokens: 3000}
+  - {name: panel_eval_claude-opus-4.6, model: claude-opus-4.6, calls: 24000, in_tokens: 3500, out_tokens: 1800}
+  - {name: train_verifier_eval_4o-mini, model: gpt-4o-mini,    calls: 12000, in_tokens: 3500, out_tokens: 1400}
+  # RL training with the weak verifier: 128 prompts x 16 rollouts x ~490 (med) + ~775 (sci) iters
+  - {name: train_reward_4o-mini_medical, model: gpt-4o-mini,   calls: 1003520, in_tokens: 3500, out_tokens: 1400}
+  - {name: train_reward_4o-mini_science, model: gpt-4o-mini,   calls: 1587200, in_tokens: 3300, out_tokens: 1300}
+  # Verifier selection: 2,000 prompts x (3 panel + API candidates)
+  - {name: versel_panel_gpt-5.4,       model: gpt-5.4,         calls: 2000, in_tokens: 3000, out_tokens: 3000}
+  - {name: versel_panel_gemini,        model: gemini-3-pro,    calls: 2000, in_tokens: 3000, out_tokens: 3000}
+  - {name: versel_panel_opus,          model: claude-opus-4.6, calls: 2000, in_tokens: 3000, out_tokens: 1800}
+  - {name: versel_gpt-5,               model: gpt-5,           calls: 2000, in_tokens: 3000, out_tokens: 3000}
+  - {name: versel_gpt-5-mini,          model: gpt-5-mini,      calls: 2000, in_tokens: 3000, out_tokens: 3000}
+  - {name: versel_gpt-5-nano,          model: gpt-5-nano,      calls: 2000, in_tokens: 3000, out_tokens: 3000}
+  - {name: versel_gpt-4o-mini,         model: gpt-4o-mini,     calls: 2000, in_tokens: 3000, out_tokens: 1400}
+  # Taxonomy: ~53k exploited cases (paper) -> extraction + classification
+  - {name: taxonomy_extract,           model: gpt-5.4,         calls: 53447, in_tokens: 900, out_tokens: 400}
+  - {name: taxonomy_classify,          model: gpt-5.4-nano,    calls: 53447, in_tokens: 500, out_tokens: 50}
+  # Sec. 4: 500 prompts x 4 runs, both orders, 3 judges; G.1: 300 x 10 ckpts x 2 runs x 3 judges
+  - {name: pairwise_gpt-5.4,           model: gpt-5.4,         calls: 4000, in_tokens: 3500, out_tokens: 2500}
+  - {name: pairwise_gemini,            model: gemini-3-pro,    calls: 4000, in_tokens: 3500, out_tokens: 2500}
+  - {name: pairwise_opus,              model: claude-opus-4.6, calls: 4000, in_tokens: 3500, out_tokens: 1500}
+  - {name: g1_panel_gpt-5.4,           model: gpt-5.4,         calls: 6000, in_tokens: 3500, out_tokens: 3000}
+  - {name: g1_panel_gemini,            model: gemini-3-pro,    calls: 6000, in_tokens: 3500, out_tokens: 3000}
+  - {name: g1_panel_opus,              model: claude-opus-4.6, calls: 6000, in_tokens: 3500, out_tokens: 1800}
+  # HealthBench: 1,000 prompts x ~11.4 rubric items x 10 ckpts x 2 medical runs (per-item grading)
+  - {name: healthbench_gpt-4.1,        model: gpt-4.1,         calls: 228000, in_tokens: 1500, out_tokens: 120}

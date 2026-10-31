@@ -1,0 +1,58 @@
+# Every LLM used in the pipeline. Aliases are what the rest of the code/configs refer to.
+# Override per-cluster values (base_url, concurrency) in configs/local.yaml -> models: {alias: {...}}.
+# price_in / price_out: USD per 1M tokens, used only for cost estimates. VERIFY before budgeting:
+# entries marked "# VERIFY" are placeholders, not checked list prices.
+#
+# The paper does not report grader temperatures; reasoning models (gpt-5.x) do not accept one,
+# so temperature is left unset (provider default) everywhere except where noted.
+
+models:
+  # ---------------- training verifiers ----------------
+  gpt-4o-mini:                       # weak verifier (paper)
+    provider: openai
+    model: gpt-4o-mini
+    max_tokens: 8192
+    concurrency: 64
+    price_in: 0.15
+    price_out: 0.60
+
+  gpt-oss-120b:                      # strong verifier (paper), self-hosted with vLLM
+    provider: vllm
+    model: openai/gpt-oss-120b
+    base_url: env:VERIFIER_BASE_URL  # e.g. http://<node>:8000/v1, written by scripts/serve_vllm.sh
+    max_tokens: 16384
+    concurrency: 256
+    extra_body: {reasoning_effort: medium}   # not reported in paper; documented choice
+    price_in: 0.0
+    price_out: 0.0
+
+  # ---------------- verifier-selection candidates (Table 4) ----------------
+  gpt-5:      {provider: openai, model: gpt-5,       max_tokens: 16384, concurrency: 32, price_in: 1.25, price_out: 10.0}   # VERIFY
+  gpt-5-mini: {provider: openai, model: gpt-5-mini,  max_tokens: 16384, concurrency: 64, price_in: 0.25, price_out: 2.0}    # VERIFY
+  gpt-5-nano: {provider: openai, model: gpt-5-nano,  max_tokens: 16384, concurrency: 64, price_in: 0.05, price_out: 0.40}   # VERIFY
+  gpt-oss-20b:
+    provider: vllm
+    model: openai/gpt-oss-20b
+    base_url: env:VERIFIER20B_BASE_URL
+    max_tokens: 16384
+    concurrency: 256
+    extra_body: {reasoning_effort: medium}
+  # Non-Qwen open-weight stand-in for the paper's Qwen3-30B-A3B row (Qwen is not allowed).
+  llama-3.1-8b-judge:
+    provider: vllm
+    model: meta-llama/Llama-3.1-8B-Instruct
+    base_url: env:JUDGE8B_BASE_URL
+    max_tokens: 8192
+    concurrency: 256
+    temperature: 0.0
+
+  # ---------------- reference panel (evaluation only) ----------------
+  gpt-5.4:         {provider: openai,    model: gpt-5.4,              max_tokens: 16384, concurrency: 32, price_in: 2.50, price_out: 15.0}  # VERIFY
+  gemini-3-pro:    {provider: google,    model: gemini-3-pro-preview, max_tokens: 16384, concurrency: 32, price_in: 2.00, price_out: 12.0}  # VERIFY id+price
+  claude-opus-4.6: {provider: anthropic, model: claude-opus-4-6,      max_tokens: 16384, concurrency: 16, price_in: 5.00, price_out: 25.0}  # VERIFY
+
+  # ---------------- analysis helpers ----------------
+  gpt-5.4-nano:    {provider: openai, model: gpt-5.4-nano, max_tokens: 4096, concurrency: 64, price_in: 0.20, price_out: 1.25}  # VERIFY
+  gpt-4.1:         {provider: openai, model: gpt-4.1-2025-04-14, max_tokens: 4096, concurrency: 64, temperature: 0.0, price_in: 2.0, price_out: 8.0}  # HealthBench grader
+
+panel: [gpt-5.4, gemini-3-pro, claude-opus-4.6]
