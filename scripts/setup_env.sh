@@ -5,7 +5,15 @@ set -euo pipefail
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
 ENV_NAME="${ENV_NAME:-rrh}"
 
-# module load anaconda cuda/12.4   # <- EDIT for Stokes/Newton
+# Modules + scratch paths come from scripts/cluster.env (Newton: cp scripts/cluster.newton.env).
+if [[ -f "$REPO/scripts/cluster.env" ]]; then
+  # shellcheck disable=SC1091
+  source "$REPO/scripts/cluster.env"
+  # shellcheck disable=SC2086
+  command -v module >/dev/null 2>&1 && [[ -n "${MODULES:-}" ]] && module load $MODULES
+  # keep the multi-GB pip cache off $HOME
+  [[ -n "${SCRATCH_ROOT:-}" ]] && export PIP_CACHE_DIR="$SCRATCH_ROOT/pip_cache" && mkdir -p "$PIP_CACHE_DIR"
+fi
 if ! conda env list | grep -q "^$ENV_NAME "; then
   conda create -y -n "$ENV_NAME" python=3.11
 fi
