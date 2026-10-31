@@ -45,3 +45,43 @@ python -m rrh.analysis.report --run_dir $RUNS_DIR/<run> --data $DATA_DIR/medical
 ```
 
 All LLM calls are cached in SQLite, so re-running an analysis does not pay for the same call twice.
+
+---
+
+# RP-OPD: stage 1 of "OPD Before RL" (arXiv:2610.02781)
+
+This is rubric-privileged on-policy distillation. The student (Llama-3.1-8B-Instruct) never sees
+the rubric. It matches the top-256 next-token distribution of a rubric-aware teacher
+(Llama-3.1-70B-Instruct + App. A.2 rubric system prompt), computed on the student's own sampled
+responses. The loss is forward KL (Eq. 4).
+
+- `IMPLEMENTATION_PLAN.md`: maps each paper section, equation and table to code.
+- `DECISIONS.md`: every unstated choice, the judge substitutions, and cost and GPU estimates.
+- `docs/CLUSTER.md`: cluster inspection and sizing.
+
+```bash
+# once per cluster (login node): inspect, then fill scripts/cluster.env
+bash scripts/cluster/inspect_cluster.sh newton
+cp scripts/cluster.env.example scripts/cluster.env && $EDITOR scripts/cluster.env
+pytest -q                                                   # 59 CPU tests, no network
+
+bash scripts/submit_opd_pipeline.sh --smoke                 # 1 GPU, Llama-3.2-1B, 4 steps, end to end
+bash scripts/submit_opd_pipeline.sh --dataset healthbench   # full DAG: prep -> train segments ->
+                                                            # gen + teacher ref -> judges -> validation -> report
+bash scripts/submit_opd_pipeline.sh --dataset all           # HealthBench, ResearchQA, RubricHub Science
+bash scripts/submit_opd_pipeline.sh --dataset healthbench --variant rubric_blind      # Fig. 2 control
+bash scripts/submit_opd_pipeline.sh --dataset rubrichub_science --variant reverse_kl  # App. B.4 ablation
+```
+
+Results go to
+`results/<experiment>/<model>__<judge>__<dataset>__seed<k>__<stamp>/`, which contains:
+- `config.yaml`, the resolved config plus the git commit;
+- `logs/`, `metrics/`, `generations/`, `judgments/`, `figures/`, `tables/`;
+- `checkpoints/`, a symlink to scratch.
+
+`results/INDEX.csv` has one row per run. `python -m rrh.analysis.opd_report` rebuilds every figure
+and table, including `results/paper/`.
+
+**Stage 2 (not implemented yet):** pick a checkpoint from `stage2_handoff.json` and run
+`POLICY=<run>/checkpoints/hf/step_000980 bash scripts/train_grpo.sh`. Switch the reward to Eq. (1)
+first (DECISIONS.md D20).

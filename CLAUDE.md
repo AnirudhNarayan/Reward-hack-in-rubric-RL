@@ -2,6 +2,13 @@
 
 This repo replicates "Reward Hacking in Rubric-Based Reinforcement Learning" (Scale AI, arXiv:2605.12474v1) as a PhD-thesis baseline (UCF, Mental Health Project). It runs on the UCF Stokes / Newton SLURM clusters. A full paper summary is in `docs/rubric_conversations.txt`, PART 1. Every deviation and choice is in `REPLICATION_NOTES.md`; keep that file updated.
 
+## RP-OPD ("OPD Before RL", stage 1 only)
+- Plan: `IMPLEMENTATION_PLAN.md`. Every unstated choice and model substitution: `DECISIONS.md` (cite D-IDs in code/configs; keep it updated).
+- Code: `src/rrh/opd/` (contexts, loss, batching, dist/FSDP2, rollout, checkpoint, trainer, evaluate), `src/rrh/grading/{opd_prompts,opd_grader,citations}.py`, `src/rrh/data/{opd_data,researchqa}.py`, `src/rrh/results/layout.py`, `src/rrh/analysis/{opd_report,judge_agreement}.py`.
+- Jobs: `scripts/slurm/opd/*.slurm`; one-command launch `scripts/submit_opd_pipeline.sh`. Cluster values only in `scripts/cluster.env` (see `docs/CLUSTER.md`).
+- Also forbidden: DeepSeek, Kimi/Moonshot, GLM/Zhipu, Yi, InternLM, Baichuan, MiniMax, or any other Chinese-developed model, in any role.
+- Never prune checkpoints without asking (`train.keep_resume_last` stays null unless the user approves).
+
 ## Hard rules
 - **Never use Qwen models**, either as the policy or as a verifier.
 - **Never run training, vLLM or evaluation on the login node.** Always use `sbatch` or `srun`.

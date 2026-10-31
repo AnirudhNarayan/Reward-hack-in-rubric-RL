@@ -8,7 +8,8 @@
   segment may use a different number of GPUs.
 
 Both are written to a ``.tmp`` directory and renamed, and carry a ``COMPLETE`` marker, so a job
-killed mid-save never leaves a checkpoint that looks valid. Nothing here deletes checkpoints.
+killed mid-save never leaves a checkpoint that looks valid. Nothing is deleted unless
+``train.keep_resume_last`` is set (off by default; HF exports are never pruned).
 """
 
 from __future__ import annotations
@@ -134,3 +135,18 @@ def list_hf_checkpoints(ckpt_root: Path) -> list[tuple[int, Path]]:
         if p.is_dir() and p.name.startswith("step_") and p.name[5:].isdigit() and (p / COMPLETE).exists():
             out.append((int(p.name[5:]), p))
     return sorted(out)
+
+
+def prune_resume(ckpt_root: Path, keep_last: int, di: DistInfo) -> list[Path]:
+    """Delete all but the newest ``keep_last`` complete RESUME states (opt-in; DECISIONS.md D16).
+    HF exports (the evaluated / stage-2 checkpoints) are never touched."""
+    removed: list[Path] = []
+    if di.is_main and keep_last and keep_last > 0:
+        d = Path(ckpt_root) / "resume"
+        done = sorted(p for p in d.iterdir() if p.is_dir() and p.name.startswith("step_")
+                      and p.name[5:].isdigit() and (p / COMPLETE).exists())
+        for p in done[:-keep_last]:
+            shutil.rmtree(p)
+            removed.append(p)
+    barrier(di)
+    return removed

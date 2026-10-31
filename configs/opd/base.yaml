@@ -50,7 +50,8 @@ train:
   save_hf_every: 50                           # (D16) HF checkpoints for eval curves / stage 2
   save_hf_steps: [20, 100, 480, 680, 980]     # (D16) paper's Llama warm starts + B.4's first point
   save_step0_hf: true
-  save_resume_every: 50                       # DCP resume state (D16: never auto-deleted)
+  save_resume_every: 100                      # DCP resume state, ~96 GB each for 8B (D16)
+  keep_resume_last: null                      # opt-in pruning of OLD resume states; null = keep all
   resume: auto
   exit_margin_seconds: 900                    # save + exit this long before the walltime
   log_every: 1

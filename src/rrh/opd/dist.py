@@ -126,10 +126,12 @@ def build_causal_lm(path: str, di: DistInfo, *, master_dtype: str, compute_dtype
             model = AutoModelForCausalLM.from_config(config, torch_dtype=mdt, attn_implementation=attn)
         if not trainable:
             model.requires_grad_(False)
+        from torch.distributed.device_mesh import init_device_mesh
+        mesh = init_device_mesh(di.device.type, (di.world,))      # explicit: follows our device
         mp = MixedPrecisionPolicy(param_dtype=DTYPES[compute_dtype], reduce_dtype=torch.float32)
         for layer in _decoder_layers(model):
-            fully_shard(layer, mp_policy=mp, reshard_after_forward=True)
-        fully_shard(model, mp_policy=mp, reshard_after_forward=True)
+            fully_shard(layer, mesh=mesh, mp_policy=mp, reshard_after_forward=True)
+        fully_shard(model, mesh=mesh, mp_policy=mp, reshard_after_forward=True)
         model.to_empty(device=di.device)
         load_sharded_safetensors(model, local_dir, di)
         reinit_rotary_buffers(model, di.device)

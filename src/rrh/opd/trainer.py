@@ -353,6 +353,8 @@ class OPDTrainer:
             if self._due(done, tr.get("save_resume_every")) or done == total or stop:
                 ckpt.save_resume(self.student, self.opt, self.ckpt_root, done,
                                  {"step": done, "seed": self.seed}, self.di)
+                if tr.get("keep_resume_last"):
+                    ckpt.prune_resume(self.ckpt_root, int(tr["keep_resume_last"]), self.di)
             if stop:
                 self._log_main(f"walltime deadline near: saved resume state at step {done}, exiting")
                 barrier(self.di)
