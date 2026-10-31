@@ -22,6 +22,14 @@ if command -v conda >/dev/null 2>&1; then
   conda activate "${CONDA_ENV:-rrh}"
 fi
 
+# HF_TOKEN for gated Llama/Gemma downloads by vLLM / huggingface_hub (never echoed). Other keys in
+# ~/.env stay unexported; Python code reads them via rrh.utils.io.load_env.
+if [[ -z "${HF_TOKEN:-}" && -f "$HOME/.env" ]]; then
+  HF_TOKEN="$(sed -n 's/^[[:space:]]*\(export[[:space:]]\+\)\?HF_TOKEN[[:space:]]*=[[:space:]]*//p' "$HOME/.env" \
+              | tail -1 | tr -d "\"'\r")"
+  [[ -n "$HF_TOKEN" ]] && export HF_TOKEN
+fi
+
 export PYTHONPATH="$REPO/src:$REPO:${PYTHONPATH:-}"
 export RESULTS_ROOT="${RESULTS_ROOT:-$REPO/results}"
 export HF_HOME DATA_DIR CKPT_ROOT RRH_CACHE

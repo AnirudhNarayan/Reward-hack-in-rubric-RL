@@ -16,8 +16,10 @@
 #              intermediate ones (D16); runs while train_{k+1} trains. gen_k also waits for gen_{k-1}.
 #   prep -> teacher_ref(GPU, TP)                   (independent of training)
 #   gen_S + teacher_ref -> grade_curve (Llama-3.3-70B A.1 boolean, every step: Fig. 2)
-#                       -> grade_table1 (GPT-4o-mini shortcut-aware, final step: Table 1; CPU/API
-#                                        + A.1 boolean on a 200-prompt subset for validation)
+#                       -> grade_table1 ($TABLE1_JUDGE shortcut-aware, final step: Table 1
+#                                        + A.1 boolean on a 200-prompt subset for validation).
+#                          TABLE1_JUDGE: gemma-3-27b-judge (default, self-hosted, GPU) or
+#                          gpt-4o-mini-judge (the paper's judge; API, CPU job, needs OPENAI_API_KEY)
 #                       -> grade_ref (gpt-oss-120b A.1 boolean, 200-prompt subset)
 #   grades -> judge_validation(CPU) -> report(CPU)
 set -euo pipefail
@@ -27,7 +29,8 @@ cd "$REPO"
 # shellcheck disable=SC1091
 source scripts/cluster.env
 
-DATASET=healthbench; SEED=0; SEGMENTS=4; NODES="${TRAIN_NODES:-2}"; VARIANT=""; DRY=""; SMOKE=""
+TABLE1_JUDGE="${TABLE1_JUDGE:-gemma-3-27b-judge}"
+DATASET=healthbench; SEED=0; SEGMENTS="${TRAIN_SEGMENTS:-4}"; NODES="${TRAIN_NODES:-2}"; VARIANT=""; DRY=""; SMOKE=""
 SKIP_PREP=""; SEG_TIME="${MAX_WALLTIME:-48:00:00}"; VAL_SUBSET=200; OVERRIDES="${OVERRIDES:-}"
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -107,19 +110,38 @@ run_one() {
   for seg in $(seq 1 "$SEGMENTS"); do
     local dep="$dep_prep"
     [[ -n "$prev" ]] && dep="--dependency=afterany:$prev"
-    prev=$(submit train "$L" "${GPU_ARGS[@]}" -N "$NODES" --gres="$(gres "$GPUS_PER_NODE")"            --cpus-per-task="$(( ${CPUS_PER_GPU:-8} * GPUS_PER_NODE ))" --mem="${MEM_PER_NODE:-0}"            --time="$SEG_TIME" $dep            --export="$ENV,CONFIGS=$cfgs,OVERRIDES=seed=$SEED $OVERRIDES" scripts/slurm/opd/train_opd.slurm)
+    prev=$(submit train "$L" "${GPU_ARGS[@]}" -N "$NODES" --gres="$(gres "$GPUS_PER_NODE")" \
+           --cpus-per-task="$(( ${CPUS_PER_GPU:-8} * GPUS_PER_NODE ))" --mem="${MEM_PER_NODE:-0}" \
+           --time="$SEG_TIME" $dep \
+           --export="$ENV,CONFIGS=$cfgs,OVERRIDES=seed=$SEED eval.independent_judge=$TABLE1_JUDGE $OVERRIDES" \
+           scripts/slurm/opd/train_opd.slurm)
     ids+=("$prev")
-    prev_gen=$(submit gen "$L" "${GPU_ARGS[@]}" --gres="$(gres 1)" --cpus-per-task=8 --mem=64G                --dependency=afterany:"$prev"${prev_gen:+:$prev_gen} --export="$ENV"                scripts/slurm/opd/generate_eval.slurm)
+    prev_gen=$(submit gen "$L" "${GPU_ARGS[@]}" --gres="$(gres 1)" --cpus-per-task=8 --mem=64G \
+               --dependency=afterany:"$prev"${prev_gen:+:$prev_gen} --export="$ENV" \
+               scripts/slurm/opd/generate_eval.slurm)
     gens+=("$prev_gen")
   done
-  local TEACH GEN="$prev_gen" GC GI GR JV REP VSTEPS="step_000000+final+teacher"
-  TEACH=$(submit teacher "$L" "${GPU_ARGS[@]}" --gres="$(gres 4)" --cpus-per-task=32 --mem=256G $dep_prep           --export="$ENV" scripts/slurm/opd/teacher_reference.slurm)
-  GC=$(submit grade "$L" "${GPU_ARGS[@]}" --gres="$(gres 4)" --cpus-per-task=32 --mem=256G        --dependency=afterok:"$GEN":"$TEACH" --export="$ENV,JUDGE=llama-3.3-70b-judge,TASKS=boolean:all"        scripts/slurm/opd/grade.slurm)
-  # API judge: no GPU. Table 1 = final step only; validation subset = base, final, teacher.
-  GI=$(submit grade "$L" "${CPU_ARGS[@]}" --cpus-per-task=4 --mem=16G        --dependency=afterok:"$GEN":"$TEACH"        --export="$ENV,JUDGE=gpt-4o-mini-judge,TASKS=shortcut:all:final boolean:$VAL_SUBSET:$VSTEPS"        scripts/slurm/opd/grade.slurm)
-  GR=$(submit grade "$L" "${GPU_ARGS[@]}" --gres="$(gres 2)" --cpus-per-task=16 --mem=128G        --dependency=afterok:"$GEN":"$TEACH"        --export="$ENV,JUDGE=gpt-oss-120b-ref,TASKS=boolean:$VAL_SUBSET:$VSTEPS" scripts/slurm/opd/grade.slurm)
+  local TEACH GEN="$prev_gen" GC GI GR JV REP VSTEPS="step_000000+final+teacher" T1_ARGS
+  TEACH=$(submit teacher "$L" "${GPU_ARGS[@]}" --gres="$(gres 4)" --cpus-per-task=32 --mem=256G $dep_prep \
+          --export="$ENV" scripts/slurm/opd/teacher_reference.slurm)
+  GC=$(submit grade "$L" "${GPU_ARGS[@]}" --gres="$(gres 4)" --cpus-per-task=32 --mem=256G \
+       --dependency=afterok:"$GEN":"$TEACH" --export="$ENV,JUDGE=llama-3.3-70b-judge,TASKS=boolean:all" \
+       scripts/slurm/opd/grade.slurm)
+  # Table 1 = final step only; validation subset = base, final, teacher. API judges need no GPU.
+  if [[ "$TABLE1_JUDGE" == gpt-* ]]; then
+    T1_ARGS=("${CPU_ARGS[@]}" --cpus-per-task=4 --mem=16G)
+  else
+    T1_ARGS=("${GPU_ARGS[@]}" --gres="$(gres 2)" --cpus-per-task=16 --mem=128G)
+  fi
+  GI=$(submit grade "$L" "${T1_ARGS[@]}" --dependency=afterok:"$GEN":"$TEACH" \
+       --export="$ENV,JUDGE=$TABLE1_JUDGE,TASKS=shortcut:all:final boolean:$VAL_SUBSET:$VSTEPS" \
+       scripts/slurm/opd/grade.slurm)
+  GR=$(submit grade "$L" "${GPU_ARGS[@]}" --gres="$(gres 2)" --cpus-per-task=16 --mem=128G \
+       --dependency=afterok:"$GEN":"$TEACH" \
+       --export="$ENV,JUDGE=gpt-oss-120b-ref,TASKS=boolean:$VAL_SUBSET:$VSTEPS" scripts/slurm/opd/grade.slurm)
   JV=$(submit judgeval "$L" "${CPU_ARGS[@]}" --dependency=afterany:"$GC":"$GI":"$GR" \
-       --export="$ENV" scripts/slurm/opd/judge_validation.slurm)
+       --export="$ENV,JUDGES=gpt-oss-120b-ref $TABLE1_JUDGE $TABLE1_JUDGE-shortcut" \
+       scripts/slurm/opd/judge_validation.slurm)
   REP=$(submit report "$L" "${CPU_ARGS[@]}" --dependency=afterany:"$JV" --export="$ENV" scripts/slurm/opd/report.slurm)
   if [[ -z "$DRY" ]]; then
     { echo "run_id=$run_id experiment=$exp dataset=$ds seed=$SEED submitted=$(date -Is)"

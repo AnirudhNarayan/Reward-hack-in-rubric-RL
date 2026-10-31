@@ -104,7 +104,8 @@ def resolve_model_dir(path: str) -> str:
         return path
     from huggingface_hub import snapshot_download
     return snapshot_download(path, allow_patterns=["*.safetensors", "*.json", "*.model",
-                                                   "tokenizer*", "*.txt"])
+                                                   "tokenizer*", "*.txt"],
+                             ignore_patterns=["original/*", "metal/*"])
 
 
 def build_causal_lm(path: str, di: DistInfo, *, master_dtype: str, compute_dtype: str = "bfloat16",

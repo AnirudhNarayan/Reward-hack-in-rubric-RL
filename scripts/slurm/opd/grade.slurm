@@ -19,6 +19,7 @@ TASKS="${TASKS:-boolean:all}"
 RD="$(run_dir)"
 export VLLM_LOG="$RD/logs/vllm-${JUDGE}-${SLURM_JOB_ID:-local}.log"
 if [[ "$(model_field "$JUDGE" provider)" == vllm ]]; then
+  python -m rrh.data.fetch_models "$(model_field "$JUDGE" model)"     # no-op if already cached
   start_vllm "$(model_field "$JUDGE" model)" "${JUDGE_TP:-$(nvidia-smi -L | wc -l)}" "${JUDGE_MAXLEN:-16384}"
 fi
 for t in $TASKS; do

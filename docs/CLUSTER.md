@@ -57,7 +57,7 @@ These are only probes (`srun` with a 5-minute limit); no training or vLLM runs o
 | Interconnect (IB / NVLink) | HDR InfiniBand (node feature `hdr`); NVLink within highgpu nodes (SXM) | ? | multi-node training speed |
 | Max walltime | unlimited on highgpu (default 10 min, so `--time` is always set); 48 h segments | ? | `MAX_WALLTIME` (training segment length) |
 | CUDA / conda module names | `anaconda/anaconda-2024.10`, `cuda/cuda-12.6.0` | ? | `MODULES` |
-| Scratch path and quota | Lustre `/lustre/fs1`: 1000 GB soft / 1010 GB hard, 1M files (`lfs quota`) | ? | `SCRATCH_ROOT` (peak ≈ 660 GB per run, DECISIONS.md D16) |
+| Scratch path and quota | Lustre `/lustre/fs1`: 1000 GB soft / 1010 GB hard, 1M files (`lfs quota`) | ? | `SCRATCH_ROOT` (peak ≈ 530 GB per run, DECISIONS.md D16) |
 | Shared filesystem between Stokes and Newton? | ? | ? | whether prep can run on Stokes |
 | Compute-node internet | yes (huggingface.co 200 from evc101) | ? | `COMPUTE_HAS_INTERNET` (HF downloads, optional API judges) |
 
@@ -83,6 +83,7 @@ The judges are served by vLLM inside the grade jobs:
 | Judge | Tensor parallel on 80 GB GPUs |
 |---|---|
 | Llama-3.3-70B | TP = 4 |
+| Gemma-3-27B | TP = 2 |
 | gpt-oss-120b | TP = 2 |
 
 On 40 GB GPUs, double TP.
@@ -99,4 +100,4 @@ environment. RP-OPD needs:
 Check versions after setup with `python -c "import torch, vllm, transformers; print(torch.__version__, vllm.__version__, transformers.__version__)"`.
 
 Put `HF_TOKEN=...` in `~/.env` (chmod 600). It is needed for the gated Llama downloads. Put
-`OPENAI_API_KEY=...` there too for the GPT-4o-mini Table 1 judge.
+`OPENAI_API_KEY=...` there too once you switch the Table 1 judge to GPT-4o-mini (optional).

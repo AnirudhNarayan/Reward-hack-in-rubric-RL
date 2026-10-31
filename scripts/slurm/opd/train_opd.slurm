@@ -12,6 +12,13 @@
 #SBATCH --output=logs/%x-%j.out
 source "${SLURM_SUBMIT_DIR:-.}/scripts/slurm/opd/lib/common.sh"
 : "${CONFIGS:?}" "${RUN_ID:?}" "${EXPERIMENT:?}"
+RD="$(run_dir)"
+# Spare segment after training finished: exit before loading any model (final HF export exists).
+TOTAL="$(python -c "import yaml; print(yaml.safe_load(open('$RD/config.yaml'))['train']['total_steps'])" 2>/dev/null || true)"
+if [[ -n "$TOTAL" && -f "$RD/checkpoints/hf/$(printf 'step_%06d' "$TOTAL")/COMPLETE" ]]; then
+  echo "[train] $RUN_ID already finished (step $TOTAL); nothing to do"
+  exit 0
+fi
 DEADLINE="$(job_deadline)"
 NNODES="${SLURM_NNODES:-1}"
 HEAD="$(scontrol show hostnames "${SLURM_JOB_NODELIST:-$(hostname)}" | head -1)"

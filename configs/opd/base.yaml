@@ -74,7 +74,7 @@ eval:                                         # App. A.3
   max_tokens: 1024                            # per-dataset override below
   logprobs: 20                                # top-20 entropy (Fig. 12b definition)
   curve_judge: llama-3.3-70b-judge            # Qwen3-32B substitute (D10)
-  independent_judge: gpt-4o-mini-judge        # (D11) the paper's own Table 1 judge, via API
+  independent_judge: gemma-3-27b-judge        # (D11) GPT-4o-mini stand-in until the API key exists
   eval_sets: {}                               # name -> jsonl, set by the dataset config
   limit: null                                 # evaluate only the first N prompts (smoke)
   prune_hf_after_eval: true                   # (D16) delete intermediate HF ckpts once generated

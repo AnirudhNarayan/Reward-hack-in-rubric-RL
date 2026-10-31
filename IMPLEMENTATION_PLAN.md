@@ -49,7 +49,7 @@ which the code cites.
 | Student | Llama-3.1-8B-Instruct | **meta-llama/Llama-3.1-8B-Instruct** | Same model as the paper's Llama row |
 | Teacher | Llama-3.1-70B-Instruct | **meta-llama/Llama-3.1-70B-Instruct** | Same model as the paper; identical tokenizer |
 | Curve / reward judge | Qwen3-32B (deterministic, 512 tokens, JSON) | **meta-llama/Llama-3.3-70B-Instruct** (vLLM) | Closest permitted dense instruction model that returns JSON without reasoning tokens (D10) |
-| Independent judge | GPT-4o-mini (shortcut-aware) | **gpt-4o-mini** via API (same model as the paper; Gemma-3-27B-it as fallback) | User-approved, about $2–3 per run (D11) |
+| Independent judge | GPT-4o-mini (shortcut-aware) | **google/gemma-3-27b-it** (vLLM) for now; **gpt-4o-mini** via API once a key exists (`TABLE1_JUDGE`) | User mapping, then paper-exact (D11) |
 | Reference judge (validation only) | — | **openai/gpt-oss-120b** (vLLM) | A second strong judge to check the strong-judge substitution (D12) |
 | Smoke test | — | Llama-3.2-1B-Instruct student, Llama-3.2-3B-Instruct teacher | Same tokenizer family (D18) |
 
@@ -122,7 +122,7 @@ For each checkpoint (step 0 = base model) and each evaluation set:
 2. The curve judge (Llama-3.3-70B) uses the A.1 prompt. Writes
    `judgments/<judge>/<evalset>/step_XXXXXX.jsonl`, raw outputs included. Score = Eq. (1), mean over
    prompts.
-3. The independent judge (GPT-4o-mini) uses the C.1 prompt and gives standard and shortcut-aware
+3. The independent judge (Gemma-3-27B now, GPT-4o-mini later) uses the C.1 prompt and gives standard and shortcut-aware
    scores after citation checks (Table 1), on the final checkpoint only.
 4. Teacher reference (Fig. 2 gold lines): the teacher generates with the rubric system prompt at the
    same decoding settings, and the curve judge grades it.

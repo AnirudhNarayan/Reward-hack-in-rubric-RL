@@ -13,8 +13,9 @@
 #SBATCH --output=logs/%x-%j.out
 source "${SLURM_SUBMIT_DIR:-.}/scripts/slurm/opd/lib/common.sh"
 DATASETS="${DATASETS:-healthbench researchqa rubrichub_science}"
-# Models needed downstream (override MODELS to trim). The judges are only used by the grade jobs.
-MODELS="${MODELS:-meta-llama/Llama-3.1-8B-Instruct meta-llama/Llama-3.1-70B-Instruct meta-llama/Llama-3.3-70B-Instruct openai/gpt-oss-120b}"
+# Training models only. Each grade job downloads its own judge when it starts (D16: judges arrive
+# after the intermediate checkpoints are gone, which keeps peak disk under the 1 TB quota).
+MODELS="${MODELS:-meta-llama/Llama-3.1-8B-Instruct meta-llama/Llama-3.1-70B-Instruct}"
 
 if [[ ! -f "$DATA_DIR/opd/manifest.json" || -n "${FORCE_DATA:-}" ]]; then
   # shellcheck disable=SC2086

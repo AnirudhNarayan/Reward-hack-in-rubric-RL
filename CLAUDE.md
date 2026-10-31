@@ -11,7 +11,8 @@ This repo replicates "Reward Hacking in Rubric-Based Reinforcement Learning" (Sc
   `eval.prune_hf_after_eval` (intermediate HF checkpoints deleted after their eval generations
   exist; the final checkpoint is never deleted). Any other deletion of checkpoints, data or results:
   ask first.
-- Table 1 judge is GPT-4o-mini via API (user-approved; ~$2–3 per HealthBench run, DECISIONS.md).
+- Table 1 judge: Gemma-3-27B (self-hosted) until the user provides an OpenAI key; then
+  `TABLE1_JUDGE=gpt-4o-mini-judge` (user-approved, ~$2–3 per HealthBench run, DECISIONS.md D11).
 
 ## Hard rules
 - **Never use Qwen models**, either as the policy or as a verifier.
