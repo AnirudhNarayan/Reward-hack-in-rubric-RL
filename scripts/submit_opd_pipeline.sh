@@ -2,6 +2,8 @@
 # Submit the full RP-OPD pipeline for one dataset with SLURM dependencies (run on a login node;
 # it only calls sbatch).
 #
+# Scope: stage 1 (RP-OPD) only. This pipeline never launches rubric-based RL / GRPO (stage 2).
+#
 #   bash scripts/submit_opd_pipeline.sh --dataset healthbench
 #   bash scripts/submit_opd_pipeline.sh --dataset all --seed 0
 #   bash scripts/submit_opd_pipeline.sh --dataset rubrichub_science --variant reverse_kl

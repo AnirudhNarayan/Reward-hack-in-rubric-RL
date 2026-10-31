@@ -55,6 +55,10 @@ the rubric. It matches the top-256 next-token distribution of a rubric-aware tea
 (Llama-3.1-70B-Instruct + App. A.2 rubric system prompt), computed on the student's own sampled
 responses. The loss is forward KL (Eq. 4).
 
+**Scope: stage 1 only.** `scripts/submit_opd_pipeline.sh` runs RP-OPD training, checkpoint
+evaluation and judging, and nothing else. It never launches rubric-based RL (stage 2 / GRPO).
+The HF checkpoints it saves are the hand-off point if stage 2 is run later as a separate experiment.
+
 - `IMPLEMENTATION_PLAN.md`: maps each paper section, equation and table to code.
 - `DECISIONS.md`: every unstated choice, the judge substitutions, and cost and GPU estimates.
 - `docs/CLUSTER.md`: cluster inspection and sizing.
