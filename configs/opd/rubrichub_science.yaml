@@ -1,0 +1,12 @@
+# RubricHub Science (paper §4): 28,918 train / 500 eval. Table 2 RP-OPD column.
+data:
+  name: rubrichub-science
+  train: ${DATA_DIR:-data}/opd/rubrichub_science/train.jsonl
+optim:
+  lr: 3.0e-5                 # (paper, Table 2)
+rollout:
+  max_response_tokens: 2048  # (paper, Table 2)
+eval:
+  max_tokens: 2048           # (paper, App. A.3)
+  eval_sets:
+    heldout: ${DATA_DIR:-data}/opd/rubrichub_science/eval_heldout.jsonl

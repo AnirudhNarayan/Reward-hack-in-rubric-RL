@@ -1,0 +1,13 @@
+# HealthBench (paper §4): 4,500 train (RuscaRL split) / 500 eval. Table 2 RP-OPD column.
+data:
+  name: healthbench
+  train: ${DATA_DIR:-data}/opd/healthbench/train.jsonl
+optim:
+  lr: 1.0e-5                 # (paper, Table 2)
+rollout:
+  max_response_tokens: 1024  # (paper, Table 2)
+eval:
+  max_tokens: 1024           # (paper, App. A.3)
+  eval_sets:
+    heldout: ${DATA_DIR:-data}/opd/healthbench/eval_heldout.jsonl   # Table 1, Fig. 2a, Fig. 4
+    overlap: ${DATA_DIR:-data}/opd/healthbench/eval_overlap.jsonl   # Fig. 3 (overlaps training)

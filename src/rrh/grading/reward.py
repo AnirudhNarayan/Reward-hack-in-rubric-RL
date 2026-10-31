@@ -23,6 +23,18 @@ def rubric_reward(weights: Sequence[float], met: Sequence[bool | int | None]) ->
     return float(num / denom)
 
 
+def normalized_rubric_score(weights: Sequence[float], met: Sequence[bool | int | None]) -> float:
+    """"OPD Before RL" Eq. (1): R = sum_j w_j g_j / sum_{w_j>0} w_j.
+
+    Met pitfalls (w < 0, g = 1) subtract, so R can be negative (HealthBench). This is the
+    HealthBench score and differs from ``rubric_reward`` (sum |w| denominator). ``None`` -> g = 0.
+    """
+    w = np.asarray(weights, dtype=float)
+    g = np.asarray([1.0 if m else 0.0 for m in met], dtype=float)
+    pos = w[w > 0].sum()
+    return float((w * g).sum() / pos) if pos > 0 else 0.0
+
+
 def item_satisfied(weight: float, met: bool | None) -> bool:
     """Per-item 'satisfied' in the flipped sense (App. I.5): positive met, negative not met."""
     return bool(met) if weight > 0 else not bool(met)

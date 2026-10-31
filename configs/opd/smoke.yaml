@@ -1,0 +1,23 @@
+# Smoke test (engineering rule): Llama-3.2-1B student, ~50 prompts, a few steps, ONE GPU.
+# Layer on top of base.yaml + a dataset config. Teacher = Llama-3.2-3B with the rubric (D18).
+experiment: smoke
+student:
+  path: meta-llama/Llama-3.2-1B-Instruct
+  name: llama-3.2-1b-instruct
+teacher:
+  path: meta-llama/Llama-3.2-3B-Instruct
+  name: llama-3.2-3b-instruct
+data:
+  limit: 50
+train:
+  global_batch: 8
+  total_steps: 4
+  micro_batch_tokens: 8192
+  save_hf_every: 2
+  save_hf_steps: []
+  save_resume_every: 2
+rollout:
+  max_response_tokens: 256
+  gpu_memory_utilization: 0.25
+eval:
+  max_tokens: 256

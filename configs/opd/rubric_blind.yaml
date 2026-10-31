@@ -1,0 +1,4 @@
+# Rubric-blind OPD control (Fig. 2 "OPD, rubric-blind teacher"): layer on top of a dataset config.
+experiment: opd_rubric_blind
+teacher:
+  rubric_in_context: false

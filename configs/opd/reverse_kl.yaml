@@ -1,0 +1,4 @@
+# App. B.4 ablation: reverse KL, k3 estimator, backprop through student log-probs (veRL OPD).
+experiment: rp_opd_reverse_kl
+loss:
+  mode: reverse_kl_k3

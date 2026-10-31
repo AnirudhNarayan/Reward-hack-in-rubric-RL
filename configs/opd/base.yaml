@@ -1,0 +1,78 @@
+# RP-OPD defaults ("OPD Before RL", arXiv:2610.02781v1). (paper) = stated in the paper;
+# (Dn) = our choice, documented in DECISIONS.md under that ID.
+experiment: rp_opd
+seed: 0
+
+student:
+  path: meta-llama/Llama-3.1-8B-Instruct      # (paper, §4 Llama row)
+  name: llama-3.1-8b-instruct
+  master_dtype: float32                       # (D8) fp32 master weights, bf16 compute
+  compute_dtype: bfloat16
+  attn_implementation: flash_attention_2      # falls back to sdpa if flash-attn is missing
+  gradient_checkpointing: true
+
+teacher:
+  path: meta-llama/Llama-3.1-70B-Instruct     # (paper, App. A.2) same teacher as SFT
+  name: llama-3.1-70b-instruct
+  rubric_in_context: true                     # (paper) RP-OPD; false = rubric-blind control
+  dtype: bfloat16
+  attn_implementation: flash_attention_2
+
+data:
+  name: null                                  # set by the dataset config
+  train: null
+  max_prompt_tokens: 3072                     # (D14) student context cap; longer prompts dropped
+  max_teacher_prompt_tokens: 6144             # (D14) teacher context (prompt + rubric) cap
+  limit: null
+
+loss:
+  mode: forward_kl_topk                       # (paper §3) | reverse_kl_k3 (App. B.4 ablation)
+  topk: 256                                   # (paper) K = 256
+  # token-mean over all response tokens of the global batch (D3)
+
+optim:                                        # AdamW (paper, App. A.2)
+  lr: 1.0e-5                                  # (paper, Table 2) per-dataset override below
+  betas: [0.9, 0.999]                         # (D8) torch / verl defaults
+  eps: 1.0e-8
+  weight_decay: 0.01                          # (D8) verl actor default
+  grad_clip: 1.0                              # (D8) verl actor default
+  warmup_steps: 0                             # (D8) constant schedule, verl default
+
+train:
+  global_batch: 512                           # (paper, Table 2) sequences per optimizer step
+  total_steps: 1000                           # (D7) Llama OPD@980 is the last warm start in Fig. 3
+  micro_batch_tokens: 16384                   # padded tokens per micro-batch (memory knob)
+  micro_batch_max_rows: 16
+  no_sync_accumulation: false                 # FSDP2: reduce-scatter every micro-batch (memory)
+  save_hf_every: 50                           # (D16) HF checkpoints for eval curves / stage 2
+  save_hf_steps: [20, 100, 480, 680, 980]     # (D16) paper's Llama warm starts + B.4's first point
+  save_step0_hf: true
+  save_resume_every: 50                       # DCP resume state (D16: never auto-deleted)
+  resume: auto
+  exit_margin_seconds: 900                    # save + exit this long before the walltime
+  log_every: 1
+
+rollout:                                      # OPD rollouts (D6): Table 3 RL sampling
+  backend: vllm                               # vllm (colocated) | hf (smoke / fallback)
+  temperature: 1.0
+  top_p: 1.0
+  top_k: -1
+  max_response_tokens: 1024                   # (paper, Table 2) per-dataset override below
+  gpu_memory_utilization: 0.30                # vLLM share while awake (sleeps during training)
+  enable_sleep_mode: true
+  max_num_seqs: 256
+  hf_batch_size: 8
+
+eval:                                         # App. A.3
+  temperature: 0.7
+  top_p: 0.8
+  n: 1
+  max_tokens: 1024                            # per-dataset override below
+  logprobs: 20                                # top-20 entropy (Fig. 12b definition)
+  curve_judge: llama-3.3-70b-judge            # Qwen3-32B substitute (D10)
+  independent_judge: gemma-3-27b-judge        # GPT-4o-mini substitute (D11)
+  eval_sets: {}                               # name -> jsonl, set by the dataset config
+
+paths:
+  data_dir: ${DATA_DIR:-data}
+  ckpt_root: ${CKPT_ROOT}                     # scratch; results/<run>/checkpoints links here

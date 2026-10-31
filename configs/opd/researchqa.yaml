@@ -1,0 +1,12 @@
+# ResearchQA (paper §4): 16,961 train / 500 eval. Table 2 RP-OPD column.
+data:
+  name: researchqa
+  train: ${DATA_DIR:-data}/opd/researchqa/train.jsonl
+optim:
+  lr: 1.0e-5                 # (paper, Table 2)
+rollout:
+  max_response_tokens: 2048  # (paper, Table 2)
+eval:
+  max_tokens: 1024           # (paper, App. A.3: 1,024 for HealthBench and ResearchQA)
+  eval_sets:
+    heldout: ${DATA_DIR:-data}/opd/researchqa/eval_heldout.jsonl
