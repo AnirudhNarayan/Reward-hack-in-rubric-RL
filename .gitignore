@@ -24,3 +24,4 @@ results/**/logs/
 scripts/cluster.env
 docs/cluster/*.raw.txt
 results/_pipeline_logs/
+!scripts/cluster.newton.env

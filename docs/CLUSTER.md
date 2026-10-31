@@ -1,12 +1,25 @@
 # UCF clusters (Newton = GPU, Stokes = CPU/GPU)
 
-## Status: NOT YET INSPECTED
+## Status: Newton inspected 2026-10-31 (metadata); Stokes not yet
 
-The code was written on 2026-10-31 on a workstation that **cannot reach either cluster**:
-`newton.ist.ucf.edu` does not resolve without the UCF VPN, and the machine has no SSH keys. So
-nothing below is confirmed yet, and no script hard-codes a partition, account, GPU type, module
-name or path. Every cluster-specific value lives in `scripts/cluster.env`, which is git-ignored and
-copied from `scripts/cluster.env.example`.
+`inspect_cluster.sh newton` was run on the login node with `SKIP_SRUN=1`. Confirmed Newton
+values are in the table below and in `scripts/cluster.newton.env`; install them with
+`cp scripts/cluster.newton.env scripts/cluster.env`. Still to confirm: scratch path/quota and
+compute-node internet (srun probe). Stokes is not needed for stage 1: every job runs on Newton.
+
+Newton partitions (`sinfo`, `scontrol show partition`):
+
+| Partition | Nodes | Per node | MaxTime | Access for `an548089` |
+|---|---|---|---|---|
+| `highgpu` | evc[101-104] | 8x H100 SXM 80GB (`nvidia_h100_80gb_hbm3`), 128 CPUs, ~1 TB | unlimited (default 10 min) | yes, account `abedi` |
+| `normal` (default) | ~40 | 2x H100 PCIe 80GB (`nvidia_h100_pcie`) or 2x V100 16/32GB; 32-64 CPUs | unlimited | yes |
+| `preemptable` | same as `normal` | same | 2 days | yes (QOS preemptable) |
+| `short` | evc105 | 4x H200 NVL (`nvidia_h200_nvl`), 192 CPUs | 4 h | not checked |
+| `ucfit` | evc105 | same | unlimited | no (arcc, gmartin, ucfit) |
+
+Accounts: `abedi` (QOS normal, ood, preemptable; max 50 jobs) and `course_cap6614`.
+`highgpu` nodes are shared (`OverSubscribe=FORCE:4`) and the partition is open to many groups,
+so expect queue waits for 2-node jobs.
 
 ## 1. Inspect each cluster (about 10 minutes, once)
 
@@ -33,13 +46,13 @@ These are only probes (`srun` with a 5-minute limit); no training or vLLM runs o
 
 | Item | Newton | Stokes | Used by |
 |---|---|---|---|
-| GPU partition(s) | ? | ? | `GPU_PARTITION` |
-| CPU partition | ? | ? | `CPU_PARTITION` (prep, report, judge validation) |
-| Account / QOS | ? | ? | `ACCOUNT`, `QOS` |
-| GPU type, memory, GPUs/node | ? | ? | `GPU_TYPE`, `GPUS_PER_NODE`, sizing below |
-| Interconnect (IB / NVLink) | ? | ? | multi-node training speed |
-| Max walltime | ? | ? | `MAX_WALLTIME` (training segment length) |
-| CUDA / conda module names | ? | ? | `MODULES` |
+| GPU partition(s) | `highgpu` (all GPU jobs) | ? | `GPU_PARTITION` |
+| CPU partition | `normal`, no GPU requested (Newton has no CPU-only partition) | ? | `CPU_PARTITION` (prep, report, judge validation) |
+| Account / QOS | `abedi` / default (normal) | ? | `ACCOUNT`, `QOS` |
+| GPU type, memory, GPUs/node | `nvidia_h100_80gb_hbm3`, 80 GB, 8 | ? | `GPU_TYPE`, `GPUS_PER_NODE`, sizing below |
+| Interconnect (IB / NVLink) | HDR InfiniBand (node feature `hdr`); NVLink within highgpu nodes (SXM) | ? | multi-node training speed |
+| Max walltime | unlimited on highgpu (default 10 min, so `--time` is always set); 48 h segments | ? | `MAX_WALLTIME` (training segment length) |
+| CUDA / conda module names | `anaconda/anaconda-2024.10`, `cuda/cuda-12.6.0` | ? | `MODULES` |
 | Scratch path and quota | ? | ? | `SCRATCH_ROOT` (checkpoints: about 1.4 TB per run, DECISIONS.md D16) |
 | Shared filesystem between Stokes and Newton? | ? | ? | whether prep can run on Stokes |
 | Compute-node internet | ? | ? | `COMPUTE_HAS_INTERNET` (HF downloads, optional API judges) |
