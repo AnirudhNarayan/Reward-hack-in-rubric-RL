@@ -150,7 +150,7 @@ So no prompt is dropped in practice.
 | Student | Llama-3.1-8B-Instruct | meta-llama/Llama-3.1-8B-Instruct (same) | — |
 | Teacher | Llama-3.1-70B-Instruct | meta-llama/Llama-3.1-70B-Instruct (same) | — |
 | Curve / reward judge | Qwen3-32B (deterministic, 512 output tokens, JSON only) | meta-llama/Llama-3.3-70B-Instruct (vLLM, temperature 0, max_tokens 512) | D10 |
-| Independent judge (Table 1) | GPT-4o-mini, shortcut-aware | google/gemma-3-27b-it (vLLM, temperature 0, max_tokens 4,096). The original gpt-4o-mini is available as `gpt-4o-mini-judge` | D11 |
+| Independent judge (Table 1) | GPT-4o-mini, shortcut-aware | gpt-4o-mini itself via API (`gpt-4o-mini-judge`, temperature 0). Gemma-3-27B-it kept as a self-hosted fallback | D11 |
 | Reference judge for validation | — | openai/gpt-oss-120b (vLLM, reasoning_effort low) | D12 |
 | Smoke test | — | Llama-3.2-1B-Instruct student, Llama-3.2-3B-Instruct teacher, Llama-3.1-8B-Instruct judge | D18 |
 
@@ -162,16 +162,18 @@ So no prompt is dropped in practice.
 - **Caveat:** Llama-3.3 judging Llama-3.1 outputs is a same-family setting. The paper has the same
   situation (Qwen3 judging Qwen2.5 students and teachers).
 
-**D11 GPT-4o-mini → Gemma-3-27B-it.**
-- **Why:** This follows the user's mapping for the "GPT-4o-mini class". Temperature 0 is our choice;
-  the paper does not give one. GPT-4o-mini itself is permitted (it is not a Chinese model), so
-  `gpt-4o-mini-judge` exists for an exact-model check. See "Cost" for what that costs.
-- **Caveat:** Gemma-3's chat template has no system role, so vLLM folds the C.1 system prompt into
-  the first user turn.
+**D11 Table 1 judge: GPT-4o-mini itself (paper-exact).** Updated 2026-10-31 on the user's
+instruction ("if gpt is costing only 1 $ then its ok to use as a judge"). GPT-4o-mini is not a
+Chinese model, so no substitution is needed: `eval.independent_judge: gpt-4o-mini-judge`
+(temperature 0, our choice; the paper gives none). The grade job runs on the CPU partition (API,
+no GPU) and reads `OPENAI_API_KEY` from `~/.env`. Gemma-3-27B-it (`gemma-3-27b-judge`) remains in
+`configs/models.yaml` as the self-hosted fallback if API access is lost; it is no longer downloaded
+or run by default. Cost: see "Cost".
 
 **D12 Validating the substitutions.** `rrh.analysis.judge_agreement` runs on a fixed 200-prompt
-hashed subset of each eval set, across all checkpoints plus the teacher.
-- Gemma-3-27B (A.1 boolean) vs Llama-3.3-70B: criterion-level agreement / FP / FN. This is the
+hashed subset of each eval set, on the base model, the final checkpoint and the teacher (D16:
+intermediate checkpoints are graded only by the curve judge).
+- GPT-4o-mini (A.1 boolean) vs Llama-3.3-70B: criterion-level agreement / FP / FN. This is the
   weak–strong gap.
 - gpt-oss-120b vs Llama-3.3-70B: whether the strong substitute agrees with an independent strong
   judge.
@@ -192,13 +194,22 @@ The paper gives no criterion-level agreement numbers, so the target is the score
   (`VLLM_ENABLE_V1_MULTIPROCESSING=0`). Run the 1-GPU smoke test and then a 2-GPU smoke test with
   `torchrun` before the full run.
 
-**D16 Checkpoint cadence and disk.**
-- **HF exports:** every 50 steps plus steps {20, 100, 480, 680, 980} (the paper's Llama warm starts
-  and Fig. 12's first point). That is about 25 × 16 GB ≈ 400 GB per run.
-- **Resume states:** fp32 weights plus AdamW moments, about 96 GB each for 8B. One every 100 steps
-  and one at each walltime exit, about 1 TB per run.
-- **Deletion:** nothing is deleted automatically. `train.keep_resume_last: k` prunes old resume
-  states only, and is off until the user approves it. HF exports are never pruned.
+**D16 Checkpoint cadence and disk.** Updated 2026-10-31: Newton's Lustre quota is 1 TB, and the
+user approved evaluate-then-delete for intermediate checkpoints and keeping only the newest resume
+state.
+- **HF exports:** written every 50 steps plus steps {20, 100, 480, 680, 980} (as before, so the
+  Fig. 2 curve has the same resolution). After each training segment, a 1-GPU `generate_eval` job
+  generates the eval answers for every new checkpoint and then **deletes that checkpoint**
+  (`eval.prune_hf_after_eval`): grading and the Fig. 2 curve only need the generations. Never
+  deleted: the final step (`train.total_steps`, the Table 1 checkpoint, D21), any
+  `eval.keep_hf_steps`, and the newest complete checkpoint (in case training stops early).
+  At most about one segment's checkpoints (~6 × 16 GB) exist at a time; afterwards only the final
+  16 GB checkpoint remains.
+- **Resume states:** fp32 weights plus AdamW moments, about 96 GB each for 8B, one every 100 steps
+  and one at each walltime exit. `train.keep_resume_last: 1` keeps only the newest (two exist
+  briefly while a new one is written). Resume states are only needed to continue training.
+- **Peak disk per run:** model downloads ≈ 365 GB (8B, 70B teacher, Llama-3.3-70B judge,
+  gpt-oss-120b, smoke models) + ≈ 100 GB HF + ≈ 192 GB resume ≈ **660 GB**, under the 1 TB quota.
 
 **D17 Rollout correction** (App. A.2: geometric rejection sampling and token veto) applies to RL
 only. It is not part of stage 1.
@@ -227,19 +238,19 @@ Eq. (1) for this paper.
 
 ## Cost and compute estimates (logged before any large run)
 
-**API.** The default pipeline makes **no paid API calls**: every judge is self-hosted with vLLM.
-The optional `gpt-4o-mini-judge` (paper-exact independent judge, $0.15 / $0.60 per 1M tokens in /
-out) costs:
-- about 3k input and 1.5k output tokens per response, or about **$1.35 per 1,000 responses**;
-- Table 1 only (final checkpoint + teacher, 3 datasets, 500 prompts each, about 3k responses):
-  **about $4**;
-- every checkpoint (about 25 × 500 × 4 eval sets, about 50k responses): **about $70**.
-
-Check the price and that `gpt-4o-mini` is still served before using it. The API panel of the
-previous replication is not used here.
+**API.** The only paid calls are to `gpt-4o-mini-judge` ($0.15 / $0.60 per 1M tokens in / out;
+about 3k input and 1.5k output tokens per shortcut-aware response, about **$1.35 per 1,000
+responses**; A.1 boolean calls are shorter, about $0.7 per 1,000). Per HealthBench run:
+- Table 1, shortcut-aware, final checkpoint only: 2 eval sets (held-out + overlap) × 500 =
+  1,000 responses ≈ **$1.35**;
+- judge validation, A.1 boolean, 200-prompt subset × {base, final, teacher} × 2 eval sets =
+  1,200 responses ≈ **$0.85**;
+- **total ≈ $2–3 per HealthBench run**; about $5–7 if all three datasets are run.
+All calls are cached in `RRH_CACHE`, so re-running costs nothing. Check the price and that
+`gpt-4o-mini` is still served before the first run.
 
 **GPU.** Rough figures for H100-80GB; A100 is about 2.5–3× slower, and Newton's GPU types are
-unconfirmed (docs/CLUSTER.md).
+confirmed as H100 SXM 80GB on `highgpu` (docs/CLUSTER.md).
 - **Per training step** (512 rollouts):
   - about 1.1M teacher-prefill tokens (≈1.5e17 FLOP);
   - about 0.5M student train tokens (≈3e16 FLOP);
@@ -248,8 +259,8 @@ unconfirmed (docs/CLUSTER.md).
 - **1,000 steps:** **about 30–40 h on 2 × 8 H100, about 500–650 GPU-h per dataset**, about 1.5–2k
   GPU-h for all three datasets. On A100: about 4–5k GPU-h.
 - **Eval generation:** about 25 checkpoints × 500–1,000 prompts, about 2 GPU-h per dataset.
-- **Judging:** Llama-3.3-70B on TP4 is about 4–8 GPU-h per dataset. Gemma-3-27B shortcut-aware on
-  TP2 is about 6 GPU-h. gpt-oss-120b on the 200-prompt subset is about 2 GPU-h.
+- **Judging:** Llama-3.3-70B on TP4 is about 4–8 GPU-h per dataset. gpt-oss-120b on the
+  200-prompt subset is about 2 GPU-h. GPT-4o-mini is API (no GPU).
 - **Smoke test:** under 1 GPU-h.
 
 Update these numbers from `metrics/train.jsonl` (`time_*` fields) after the smoke test and the

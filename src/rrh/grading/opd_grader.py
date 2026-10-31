@@ -34,7 +34,7 @@ from rrh.grading.opd_prompts import (SHORTCUT_AWARE_SYSTEM_PROMPT, number_lines,
 from rrh.grading.parsing import _as_bool, extract_json
 from rrh.grading.reward import normalized_rubric_score
 from rrh.opd.contexts import conversation
-from rrh.results.layout import RunDir
+from rrh.results.layout import RunDir, step_name
 from rrh.utils.io import read_jsonl, write_jsonl
 
 log = logging.getLogger(__name__)
@@ -243,6 +243,8 @@ async def grade_run(run: RunDir, judge_alias: str, mode: str, evalsets: list[str
     client = runtime.client(judge_alias)
     judge = BooleanRubricJudge(client) if mode == "boolean" else ShortcutAwareJudge(client)
     jname = judge_dir_name(judge_alias, mode)
+    if steps:   # "final" = the last training step (the Table 1 checkpoint, D21)
+        steps = [step_name(cfg["train"]["total_steps"]) if s == "final" else s for s in steps]
     for evalset, path in cfg["eval"]["eval_sets"].items():
         if evalsets and evalset not in evalsets:
             continue

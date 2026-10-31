@@ -14,7 +14,7 @@
 source "${SLURM_SUBMIT_DIR:-.}/scripts/slurm/opd/lib/common.sh"
 DATASETS="${DATASETS:-healthbench researchqa rubrichub_science}"
 # Models needed downstream (override MODELS to trim). The judges are only used by the grade jobs.
-MODELS="${MODELS:-meta-llama/Llama-3.1-8B-Instruct meta-llama/Llama-3.1-70B-Instruct meta-llama/Llama-3.3-70B-Instruct google/gemma-3-27b-it openai/gpt-oss-120b}"
+MODELS="${MODELS:-meta-llama/Llama-3.1-8B-Instruct meta-llama/Llama-3.1-70B-Instruct meta-llama/Llama-3.3-70B-Instruct openai/gpt-oss-120b}"
 
 if [[ ! -f "$DATA_DIR/opd/manifest.json" || -n "${FORCE_DATA:-}" ]]; then
   # shellcheck disable=SC2086

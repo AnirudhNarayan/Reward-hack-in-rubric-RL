@@ -51,7 +51,7 @@ train:
   save_hf_steps: [20, 100, 480, 680, 980]     # (D16) paper's Llama warm starts + B.4's first point
   save_step0_hf: true
   save_resume_every: 100                      # DCP resume state, ~96 GB each for 8B (D16)
-  keep_resume_last: null                      # opt-in pruning of OLD resume states; null = keep all
+  keep_resume_last: 1                         # (D16) user-approved 2026-10-31: newest resume state only
   resume: auto
   exit_margin_seconds: 900                    # save + exit this long before the walltime
   log_every: 1
@@ -74,9 +74,11 @@ eval:                                         # App. A.3
   max_tokens: 1024                            # per-dataset override below
   logprobs: 20                                # top-20 entropy (Fig. 12b definition)
   curve_judge: llama-3.3-70b-judge            # Qwen3-32B substitute (D10)
-  independent_judge: gemma-3-27b-judge        # GPT-4o-mini substitute (D11)
+  independent_judge: gpt-4o-mini-judge        # (D11) the paper's own Table 1 judge, via API
   eval_sets: {}                               # name -> jsonl, set by the dataset config
   limit: null                                 # evaluate only the first N prompts (smoke)
+  prune_hf_after_eval: true                   # (D16) delete intermediate HF ckpts once generated
+  keep_hf_steps: []                           # extra steps never pruned (final is always kept)
 
 paths:
   data_dir: ${DATA_DIR:-data}

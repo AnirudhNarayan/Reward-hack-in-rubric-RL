@@ -7,7 +7,11 @@ This repo replicates "Reward Hacking in Rubric-Based Reinforcement Learning" (Sc
 - Code: `src/rrh/opd/` (contexts, loss, batching, dist/FSDP2, rollout, checkpoint, trainer, evaluate), `src/rrh/grading/{opd_prompts,opd_grader,citations}.py`, `src/rrh/data/{opd_data,researchqa}.py`, `src/rrh/results/layout.py`, `src/rrh/analysis/{opd_report,judge_agreement}.py`.
 - Jobs: `scripts/slurm/opd/*.slurm`; one-command launch `scripts/submit_opd_pipeline.sh`. Cluster values only in `scripts/cluster.env` (see `docs/CLUSTER.md`).
 - Also forbidden: DeepSeek, Kimi/Moonshot, GLM/Zhipu, Yi, InternLM, Baichuan, MiniMax, or any other Chinese-developed model, in any role.
-- Never prune checkpoints without asking (`train.keep_resume_last` stays null unless the user approves).
+- Pruning approved by the user on 2026-10-31 (1 TB Lustre quota): `train.keep_resume_last: 1` and
+  `eval.prune_hf_after_eval` (intermediate HF checkpoints deleted after their eval generations
+  exist; the final checkpoint is never deleted). Any other deletion of checkpoints, data or results:
+  ask first.
+- Table 1 judge is GPT-4o-mini via API (user-approved; ~$2–3 per HealthBench run, DECISIONS.md).
 
 ## Hard rules
 - **Never use Qwen models**, either as the policy or as a verifier.

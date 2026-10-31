@@ -58,3 +58,13 @@ def test_config_layering_and_env(tmp_path, monkeypatch):
     assert cfg["data"]["train"] == "/scratch/data/opd/rubrichub_science/train.jsonl"
     assert cfg["paths"]["ckpt_root"] == "${CKPT_ROOT}"      # unresolved stays visible
     assert cfg["eval"]["temperature"] == 0.7 and cfg["eval"]["top_p"] == 0.8
+
+
+def test_eval_prune_protects_final_newest_and_kept_steps():
+    from pathlib import Path
+    from rrh.opd.evaluate import protected_steps
+    cfg = {"train": {"total_steps": 1000}, "eval": {"keep_hf_steps": [480]}}
+    ckpts = [(s, Path(f"step_{s:06d}")) for s in (0, 50, 100, 480, 550)]
+    assert protected_steps(cfg, ckpts) == {1000, 480, 550}
+    cfg["eval"]["keep_hf_steps"] = None
+    assert protected_steps(cfg, []) == {1000}

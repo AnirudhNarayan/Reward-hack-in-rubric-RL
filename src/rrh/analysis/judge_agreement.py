@@ -6,7 +6,7 @@ Eq. (1) score on the common set -- the quantity the paper's Fig. 13 compares acr
 
     python -m rrh.analysis.judge_agreement --run_dirs results/rp_opd/<run> [...] \
         --reference llama-3.3-70b-judge \
-        --judges gpt-oss-120b-ref gemma-3-27b-judge gemma-3-27b-judge-shortcut \
+        --judges gpt-oss-120b-ref gpt-4o-mini-judge gpt-4o-mini-judge-shortcut \
         --out_dir results/judge_validation
 
 FP = judge says met, reference says not met (% of all criteria); FN the converse
@@ -128,8 +128,8 @@ def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument("--run_dirs", nargs="+", required=True)
     ap.add_argument("--reference", default="llama-3.3-70b-judge")
-    ap.add_argument("--judges", nargs="+", default=["gpt-oss-120b-ref", "gemma-3-27b-judge",
-                                                    "gemma-3-27b-judge-shortcut"])
+    ap.add_argument("--judges", nargs="+", default=["gpt-oss-120b-ref", "gpt-4o-mini-judge",
+                                                    "gpt-4o-mini-judge-shortcut"])
     ap.add_argument("--out_dir", default="results/judge_validation")
     a = ap.parse_args(argv)
     rows = compare([RunDir(p) for p in a.run_dirs], a.reference, a.judges)

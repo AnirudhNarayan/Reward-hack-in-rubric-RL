@@ -13,5 +13,5 @@ RD="$(run_dir)"
 # shellcheck disable=SC2086
 python -m rrh.analysis.judge_agreement --run_dirs "$RD" \
   --reference "${REFERENCE:-llama-3.3-70b-judge}" \
-  --judges ${JUDGES:-gpt-oss-120b-ref gemma-3-27b-judge gemma-3-27b-judge-shortcut} \
+  --judges ${JUDGES:-gpt-oss-120b-ref gpt-4o-mini-judge gpt-4o-mini-judge-shortcut} \
   --out_dir "${OUT_DIR:-$RD}"

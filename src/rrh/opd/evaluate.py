@@ -9,12 +9,18 @@ Decoding: one response per prompt, temperature 0.7, top-p 0.8, max 1,024 / 1,024
 The student is prompted without the rubric. Per response we also store the mean token entropy
 over the 20 most probable tokens renormalized (Fig. 5 / Fig. 12b), from vLLM's top-20 logprobs.
 Existing generation files are skipped, so the job is resumable.
+
+With ``eval.prune_hf_after_eval`` (D16), an intermediate HF checkpoint is deleted as soon as its
+generations exist for every eval set: the generations are all that grading and the Fig. 2 curve
+need. Never deleted: the final step (Table 1 / stage-2 hand-off), ``eval.keep_hf_steps``, and the
+newest complete checkpoint on disk (in case training stops before its final step).
 """
 
 from __future__ import annotations
 
 import argparse
 import math
+import shutil
 from pathlib import Path
 
 from rrh.opd.checkpoint import list_hf_checkpoints
@@ -93,6 +99,7 @@ def main(argv=None):
     ap.add_argument("--eval_sets", nargs="*", default=None)
     ap.add_argument("--tp", type=int, default=1)
     ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--no_prune", action="store_true", help="keep every HF checkpoint")
     a = ap.parse_args(argv)
 
     run = RunDir(a.run_dir)
@@ -108,6 +115,8 @@ def main(argv=None):
                            lambda r: teacher_messages(r, rubric), a.tp, a.seed, label)
         return
     ckpts = list_hf_checkpoints(run.checkpoint_dir())
+    protected = protected_steps(cfg, ckpts)
+    prune = bool(cfg["eval"].get("prune_hf_after_eval")) and not a.no_prune
     if a.steps is not None:
         ckpts = [(s, p) for s, p in ckpts if s in set(a.steps)]
     if not ckpts:
@@ -115,6 +124,17 @@ def main(argv=None):
     for step, path in ckpts:
         items = [(k, rows, run.generations(k, step)) for k, rows in sets.items()]
         generate_for_model(str(path), items, cfg, student_messages, a.tp, a.seed, step)
+        if prune and step not in protected and all(out.exists() for _, _, out in items):
+            shutil.rmtree(path)
+            print(f"[eval] pruned HF checkpoint {path} (generations kept)", flush=True)
+
+
+def protected_steps(cfg: dict, ckpts: list[tuple[int, Path]]) -> set[int]:
+    """HF checkpoints that evaluation never deletes (D16)."""
+    keep = {int(cfg["train"]["total_steps"])} | {int(s) for s in cfg["eval"].get("keep_hf_steps") or []}
+    if ckpts:
+        keep.add(max(s for s, _ in ckpts))
+    return keep
 
 
 if __name__ == "__main__":
