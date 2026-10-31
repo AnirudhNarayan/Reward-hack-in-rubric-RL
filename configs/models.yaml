@@ -46,6 +46,46 @@ models:
     concurrency: 256
     temperature: 0.0
 
+  # ---------------- RP-OPD replication ("OPD Before RL"); see DECISIONS.md D10-D12 ----------------
+  # Served by scripts/slurm/opd/grade.slurm, which starts vLLM inside the job and exports
+  # JUDGE_BASE_URL; or point JUDGE_BASE_URL at a scripts/slurm/opd/serve_judge.slurm server.
+  llama-3.3-70b-judge:               # curve/reward judge; stands in for Qwen3-32B (A.1, A.3)
+    provider: vllm
+    model: meta-llama/Llama-3.3-70B-Instruct
+    base_url: env:JUDGE_BASE_URL
+    max_tokens: 512                  # (paper A.3) 512-token output budget
+    temperature: 0.0                 # (paper A.3) deterministic decoding
+    concurrency: 256
+  gemma-3-27b-judge:                 # independent shortcut-aware judge; stands in for GPT-4o-mini (C.1)
+    provider: vllm
+    model: google/gemma-3-27b-it
+    base_url: env:JUDGE_BASE_URL
+    max_tokens: 4096                 # per-item JSON with quotes + explanations
+    temperature: 0.0
+    concurrency: 128
+  gemma-3-12b-judge:                 # cheaper weak-judge alternative (validation only)
+    provider: vllm
+    model: google/gemma-3-12b-it
+    base_url: env:JUDGE_BASE_URL
+    max_tokens: 4096
+    temperature: 0.0
+    concurrency: 128
+  gpt-oss-120b-ref:                  # second strong judge for validating the substitution
+    provider: vllm
+    model: openai/gpt-oss-120b
+    base_url: env:JUDGE_BASE_URL
+    max_tokens: 4096                 # reasoning tokens + JSON
+    concurrency: 256
+    extra_body: {reasoning_effort: low}
+  gpt-4o-mini-judge:                 # optional: the paper's own independent judge, via API
+    provider: openai
+    model: gpt-4o-mini
+    max_tokens: 4096
+    temperature: 0.0
+    concurrency: 64
+    price_in: 0.15
+    price_out: 0.60
+
   # ---------------- reference panel (evaluation only) ----------------
   gpt-5.4:         {provider: openai,    model: gpt-5.4,              max_tokens: 16384, concurrency: 32, price_in: 2.50, price_out: 15.0}  # VERIFY
   gemini-3-pro:    {provider: google,    model: gemini-3-pro-preview, max_tokens: 16384, concurrency: 32, price_in: 2.00, price_out: 12.0}  # VERIFY id+price
