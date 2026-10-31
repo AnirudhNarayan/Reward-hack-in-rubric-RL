@@ -14,3 +14,12 @@ __pycache__/
 .pytest_cache/
 wandb/
 outputs/
+# RP-OPD results: large artefacts stay out of git (INDEX.csv, configs, metrics, figures, tables are tracked)
+results/**/checkpoints
+results/**/checkpoints.path
+results/**/_checkpoints_local/
+results/**/generations/
+results/**/judgments/
+results/**/logs/
+scripts/cluster.env
+docs/cluster/*.raw.txt

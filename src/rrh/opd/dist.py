@@ -54,7 +54,7 @@ def init_distributed() -> DistInfo:
     world = int(os.environ.get("WORLD_SIZE", "1"))
     rank = int(os.environ.get("RANK", "0"))
     local = int(os.environ.get("LOCAL_RANK", "0"))
-    if torch.cuda.is_available():
+    if torch.cuda.is_available() and torch.cuda.device_count() > 0 and not os.environ.get("RRH_FORCE_CPU"):
         torch.cuda.set_device(local)
         device = torch.device("cuda", local)
     else:
