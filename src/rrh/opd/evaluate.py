@@ -97,7 +97,8 @@ def main(argv=None):
 
     run = RunDir(a.run_dir)
     cfg = run.read_config()
-    sets = {k: read_jsonl(v) for k, v in eval_sets(cfg, a.eval_sets).items()}
+    limit = cfg["eval"].get("limit")
+    sets = {k: read_jsonl(v)[: limit or None] for k, v in eval_sets(cfg, a.eval_sets).items()}
 
     if a.policy == "teacher":
         rubric = cfg["teacher"].get("rubric_in_context", True)

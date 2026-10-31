@@ -165,6 +165,52 @@ class OPDTrainer:
             return torch.autocast("cpu", enabled=False)
         return torch.autocast(self.di.device.type, dtype=self.autocast)
 
+    # ------------------------------------------------------------------ teacher phase
+    @torch.no_grad()
+    def _teacher_topk_all(self, ctx, resp, lengths, k: int, pad: int) -> list[tuple]:
+        """Per local sample: (topk_idx [L,K] long, topk_logp [L,K] fp32, sampled_logp [L] fp32)."""
+        tr, di = self.cfg["train"], self.di
+        budget = int(tr.get("teacher_micro_batch_tokens", 4 * int(tr["micro_batch_tokens"])))
+        # the teacher side only: (teacher ctx, teacher ctx, resp) so the planner sizes on it
+        t_mbs = plan_micro_batches([(l[1], l[1], l[2]) for l in lengths], budget,
+                                   tr.get("teacher_micro_batch_max_rows"))
+        n = all_reduce_max_int(len(t_mbs), di)
+        chunk = int(tr.get("teacher_topk_chunk_rows", 4096))
+        out: list = [None] * len(resp)
+        for j in range(n):
+            real = j < len(t_mbs)
+            ids = t_mbs[j] if real else t_mbs[0][:1]
+            t_b = build_aligned_batch([ctx[i][1] for i in ids], [resp[i] for i in ids], pad).to(di.device)
+            with self._ac():
+                logits = _fwd_logits(self.teacher, t_b, t_b.logit_positions())   # [B, L, V]
+            if not real:
+                del logits
+                continue
+            for b, i in enumerate(ids):
+                L = len(resp[i])
+                rows_logits = logits[b, :L]
+                sampled = t_b.resp_ids[b, :L]
+                parts = [teacher_topk(rows_logits[s:s + chunk], k, sampled[s:s + chunk])
+                         for s in range(0, L, chunk)]
+                out[i] = (torch.cat([p[0] for p in parts]), torch.cat([p[1] for p in parts]),
+                          torch.cat([p[2] for p in parts]))
+            del logits
+        return out
+
+    @staticmethod
+    def _stack_teacher(t_out, ids, L: int):
+        """Pad per-sample teacher results to [B*L, K] in the student micro-batch layout."""
+        K = t_out[ids[0]][0].shape[1]
+        dev = t_out[ids[0]][0].device
+        idx = torch.zeros((len(ids), L, K), dtype=torch.long, device=dev)
+        logp = torch.full((len(ids), L, K), -1e4, dtype=torch.float32, device=dev)
+        samp = torch.zeros((len(ids), L), dtype=torch.float32, device=dev)
+        for b, i in enumerate(ids):
+            ti, tl, ts = t_out[i]
+            n = ti.shape[0]
+            idx[b, :n], logp[b, :n], samp[b, :n] = ti, tl, ts
+        return idx.reshape(-1, K), logp.reshape(-1, K), samp.reshape(-1)
+
     # ------------------------------------------------------------------ one step
     def train_step(self, step: int) -> dict:
         cfg, di = self.cfg, self.di
@@ -194,31 +240,31 @@ class OPDTrainer:
         scale = di.world / max(n_global, 1.0)        # FSDP averages grads over ranks -> x world
 
         lengths = [(len(c[0]), len(c[1]), len(r)) for c, r in zip(ctx, resp)]
-        mbs = plan_micro_batches(lengths, int(tr["micro_batch_tokens"]), tr.get("micro_batch_max_rows"))
-        n_mb = all_reduce_max_int(len(mbs), di)
         pad = self.tok.pad_token_id
 
+        # Phase 1 -- teacher. Under FSDP every teacher forward all-gathers the full 70B weights, so
+        # the teacher uses its own (larger, no-grad) micro-batches; only the top-K results are kept
+        # (~K*6 bytes per response token).
+        t1 = time.time()
+        t_out = self._teacher_topk_all(ctx, resp, lengths, int(lc["topk"]), pad)
+        t_teacher = time.time() - t1
+
+        # Phase 2 -- student forward/backward with gradient accumulation.
+        mbs = plan_micro_batches(lengths, int(tr["micro_batch_tokens"]), tr.get("micro_batch_max_rows"))
+        n_mb = all_reduce_max_int(len(mbs), di)
         self.student.train()
         self.opt.zero_grad(set_to_none=True)
         sums: dict[str, float] = {}
-        t_teacher = t_student = 0.0
+        t2 = time.time()
         no_sync = bool(tr.get("no_sync_accumulation", False)) and di.distributed
         for j in range(n_mb):
             real = j < len(mbs)
-            ids = mbs[j] if real else mbs[0][:1]
+            ids = mbs[j] if real else mbs[0][:1]     # dummy keeps FSDP collectives in lockstep
             weight = 1.0 if real else 0.0
             s_b = build_aligned_batch([ctx[i][0] for i in ids], [resp[i] for i in ids], pad).to(di.device)
-            t_b = build_aligned_batch([ctx[i][1] for i in ids], [resp[i] for i in ids], pad).to(di.device)
             mask = s_b.resp_mask.reshape(-1)
             sampled = s_b.resp_ids.reshape(-1)
-
-            t1 = time.time()
-            with torch.no_grad(), self._ac():
-                t_logits = _fwd_logits(self.teacher, t_b, t_b.logit_positions())
-                V = t_logits.shape[-1]
-                idx, logp, t_samp = teacher_topk(t_logits.reshape(-1, V), int(lc["topk"]), sampled)
-                del t_logits
-            t2 = time.time()
+            idx, logp, t_samp = self._stack_teacher(t_out, ids, s_b.resp_ids.shape[1])
             if no_sync:
                 set_grad_sync(self.student, j == n_mb - 1)
             with self._ac():
@@ -228,13 +274,13 @@ class OPDTrainer:
                                         teacher_sampled_logp=t_samp)
             (loss_sum * (scale * weight)).backward()
             del s_logits, loss_sum
-            t_teacher += t2 - t1
-            t_student += time.time() - t2
             if real:
                 for k, v in st.items():
                     sums[k] = sums.get(k, 0.0) + v
                 sums["teacher_sampled_logp_sum"] = sums.get("teacher_sampled_logp_sum", 0.0) + \
                     float((t_samp * mask).sum())
+        t_student = time.time() - t2
+        del t_out
 
         grad_norm = clip_grad_norm(self.student, float(cfg["optim"].get("grad_clip", 1.0)))
         self.opt.step()

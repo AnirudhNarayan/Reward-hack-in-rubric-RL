@@ -86,6 +86,14 @@ models:
     price_in: 0.15
     price_out: 0.60
 
+  llama-3.1-8b-smoke-judge:          # smoke test only (fits on the single smoke GPU)
+    provider: vllm
+    model: meta-llama/Llama-3.1-8B-Instruct
+    base_url: env:JUDGE_BASE_URL
+    max_tokens: 2048
+    temperature: 0.0
+    concurrency: 64
+
   # ---------------- reference panel (evaluation only) ----------------
   gpt-5.4:         {provider: openai,    model: gpt-5.4,              max_tokens: 16384, concurrency: 32, price_in: 2.50, price_out: 15.0}  # VERIFY
   gemini-3-pro:    {provider: google,    model: gemini-3-pro-preview, max_tokens: 16384, concurrency: 32, price_in: 2.00, price_out: 12.0}  # VERIFY id+price

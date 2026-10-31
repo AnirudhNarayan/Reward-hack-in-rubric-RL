@@ -36,7 +36,7 @@ def _args(tiny, tmp_path, steps):
             "student.gradient_checkpointing=false",
             f"data.train={tiny['data'].as_posix()}", "rollout.backend=hf", "rollout.max_response_tokens=6",
             "rollout.hf_batch_size=3", "train.global_batch=4", f"train.total_steps={steps}",
-            "train.micro_batch_tokens=150", "train.save_hf_every=2", "train.save_hf_steps=[]",
+            "train.micro_batch_tokens=150", "train.teacher_micro_batch_tokens=400", "train.save_hf_every=2", "train.save_hf_steps=[]",
             "train.save_resume_every=1", "optim.lr=1e-3", "loss.topk=16",
             f"paths.ckpt_root={(tmp_path / 'scratch').as_posix()}"]
 
@@ -105,3 +105,39 @@ def test_distillation_reduces_kl_on_fixed_sequences(tiny):
         opt.step()
         losses.append(loss.item())
     assert losses[-1] < 0.5 * losses[0], losses
+
+
+def test_teacher_phase_matches_unpadded_forward(tiny):
+    """Teacher top-K computed in big padded micro-batches == per-sequence unpadded top-K, and
+    _stack_teacher re-aligns it to the student micro-batch layout."""
+    from types import SimpleNamespace
+
+    from transformers import AutoModelForCausalLM
+
+    from rrh.opd.contexts import build_context_ids
+    from rrh.opd.dist import DistInfo
+    from rrh.opd.trainer import OPDTrainer
+    tok = tiny["tok"]
+    teacher = AutoModelForCausalLM.from_pretrained(tiny["teacher"], attn_implementation="eager").eval()
+    rows = make_rows(5)
+    ctx = [build_context_ids(tok, r) for r in rows]
+    resp = [tok(t)["input_ids"] + [tok.eos_token_id] for t in ["a", "blue sky", "x y z w", "", "ok then"]]
+    lengths = [(len(c[0]), len(c[1]), len(r)) for c, r in zip(ctx, resp)]
+    fake = SimpleNamespace(cfg={"train": {"micro_batch_tokens": 100, "teacher_micro_batch_tokens": 900,
+                                          "teacher_topk_chunk_rows": 3}},
+                           di=DistInfo(0, 1, 0, torch.device("cpu")), teacher=teacher,
+                           _ac=lambda: torch.autocast("cpu", enabled=False))
+    out = OPDTrainer._teacher_topk_all(fake, ctx, resp, lengths, 8, tok.pad_token_id)
+    for i, (c, r) in enumerate(zip(ctx, resp)):
+        with torch.no_grad():
+            ref = teacher(input_ids=torch.tensor([c[1] + r])).logits[0, len(c[1]) - 1: len(c[1]) - 1 + len(r)]
+        ref_lp = torch.log_softmax(ref.float(), -1)
+        vals, idx = ref_lp.topk(8, -1)
+        assert torch.allclose(out[i][1], vals, atol=1e-4)
+        assert torch.equal(out[i][0], idx) or torch.allclose(ref_lp.gather(-1, out[i][0]), vals, atol=1e-4)
+        assert torch.allclose(out[i][2], ref_lp.gather(-1, torch.tensor(r)[:, None])[:, 0], atol=1e-4)
+    L = max(len(resp[1]), len(resp[3])) + 1
+    idx, logp, samp = OPDTrainer._stack_teacher(out, [1, 3], L=L)
+    assert idx.shape == (2 * L, 8)
+    assert torch.equal(logp[:len(resp[1])], out[1][1]) and torch.equal(logp[L:L + len(resp[3])], out[3][1])
+    assert (logp[len(resp[1]):L].exp() == 0).all()          # padding carries zero teacher mass

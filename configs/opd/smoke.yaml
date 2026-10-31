@@ -21,3 +21,6 @@ rollout:
   gpu_memory_utilization: 0.25
 eval:
   max_tokens: 256
+  limit: 50                       # eval prompts per eval set
+  curve_judge: llama-3.1-8b-smoke-judge
+  independent_judge: llama-3.1-8b-smoke-judge

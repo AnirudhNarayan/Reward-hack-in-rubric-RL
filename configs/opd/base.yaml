@@ -43,6 +43,9 @@ train:
   total_steps: 1000                           # (D7) Llama OPD@980 is the last warm start in Fig. 3
   micro_batch_tokens: 16384                   # padded tokens per micro-batch (memory knob)
   micro_batch_max_rows: 16
+  teacher_micro_batch_tokens: 32768           # teacher is no-grad: fewer, larger FSDP all-gathers
+  teacher_micro_batch_max_rows: 32
+  teacher_topk_chunk_rows: 4096               # rows per fp32 log-softmax + top-K chunk
   no_sync_accumulation: false                 # FSDP2: reduce-scatter every micro-batch (memory)
   save_hf_every: 50                           # (D16) HF checkpoints for eval curves / stage 2
   save_hf_steps: [20, 100, 480, 680, 980]     # (D16) paper's Llama warm starts + B.4's first point
@@ -72,6 +75,7 @@ eval:                                         # App. A.3
   curve_judge: llama-3.3-70b-judge            # Qwen3-32B substitute (D10)
   independent_judge: gemma-3-27b-judge        # GPT-4o-mini substitute (D11)
   eval_sets: {}                               # name -> jsonl, set by the dataset config
+  limit: null                                 # evaluate only the first N prompts (smoke)
 
 paths:
   data_dir: ${DATA_DIR:-data}
