@@ -7,7 +7,7 @@ third_party/
 logs/
 checkpoints/
 runs/
-data/
+/data/
 *.sqlite
 __pycache__/
 *.egg-info/
