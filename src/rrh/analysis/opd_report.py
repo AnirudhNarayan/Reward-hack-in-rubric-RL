@@ -84,9 +84,9 @@ def run_report(run: RunDir) -> dict:
         teacher = judges.get(curve, {}).get("teacher")
         teacher_ind = judges.get(indep_dir, {}).get("teacher") if indep_dir else None
         if not df.empty:
-            df.to_csv(run.path / "tables" / f"eval_{evalset}.csv", index=False)
+            df.to_csv(run.path / "tables" / f"eval_{evalset}.csv", index=False)   # full precision: the plots read it back
             (run.path / "tables" / f"eval_{evalset}.tex").write_text(
-                df.to_latex(index=False, float_format="%.3f", na_rep="--"))
+                df.to_latex(index=False, float_format="%.2f", na_rep="--"))
         if "score" in df:
             fig, ax = plt.subplots(figsize=(5, 3.4))
             ax.plot(df["step"], df["score"], marker="o", ms=3, label=f"RP-OPD ({curve})")
@@ -97,7 +97,7 @@ def run_report(run: RunDir) -> dict:
                         label=f"shortcut-aware ({indep})")
             if teacher:
                 ax.axhline(teacher["score_mean"], color="goldenrod", ls="--",
-                           label=f"rubric-informed teacher {teacher['score_mean']:.3f}")
+                           label=f"rubric-informed teacher {teacher['score_mean']:.2f}")
             ax.set_xlabel("OPD step")
             ax.set_ylabel("Rubric score")
             ax.set_title(f"{cfg['data']['name']} / {evalset}")
@@ -136,10 +136,10 @@ def run_report(run: RunDir) -> dict:
     primary = summary.get("heldout") or next((v for k, v in summary.items() if k != "run_id"), None)
     if primary:
         update_index(run.results_root, {
-            "run_id": run.run_id, "best_step": primary["best_step"], "best_score": round(primary["best_score"], 4),
-            "final_score": round(primary["final_score"], 4),
-            "teacher_ref_score": round(primary["teacher_score"], 4) if primary["teacher_score"] is not None else "",
-            "shortcut_aware_score": round(primary["final_shortcut_aware"], 4)
+            "run_id": run.run_id, "best_step": primary["best_step"], "best_score": round(primary["best_score"], 2),
+            "final_score": round(primary["final_score"], 2),
+            "teacher_ref_score": round(primary["teacher_score"], 2) if primary["teacher_score"] is not None else "",
+            "shortcut_aware_score": round(primary["final_shortcut_aware"], 2)
             if primary["final_shortcut_aware"] is not None else ""})
     (run.path / "metrics" / "summary.json").write_text(json.dumps(summary, indent=2))
     return summary
@@ -213,7 +213,7 @@ def paper_outputs(results_root: Path, runs: list[RunDir], summaries: dict[str, d
                 t = summaries.get(r.run_id, {}).get("heldout", {}).get("teacher_score")
                 if t is not None and cfg["teacher"].get("rubric_in_context", True):
                     ax.axhline(t, color="goldenrod", ls="--", lw=1)
-                    ax.text(0, t, f" Rubric-informed teacher {t:.3f}", fontsize=7, va="bottom")
+                    ax.text(0, t, f" Rubric-informed teacher {t:.2f}", fontsize=7, va="bottom")
             ax.set_title(ds)
             ax.set_xlabel("Training step")
             ax.set_ylabel("Rubric score")
@@ -259,10 +259,10 @@ def paper_outputs(results_root: Path, runs: list[RunDir], summaries: dict[str, d
                          "paper_teacher_fig2": PAPER_FIG2_TEACHER.get(ds)})
     if rows:
         df = pd.DataFrame(rows)
-        df.to_csv(out / "tables" / "table1_stage1.csv", index=False)
+        df.to_csv(out / "tables" / "table1_stage1.csv", index=False, float_format="%.2f")
         (out / "tables" / "table1_stage1.tex").write_text(
-            df.drop(columns=["run_id"]).to_latex(index=False, float_format="%.3f", na_rep="--"))
-        print(df.to_string(index=False))
+            df.drop(columns=["run_id"]).to_latex(index=False, float_format="%.2f", na_rep="--"))
+        print(df.to_string(index=False, float_format="%.2f"))
 
 
 def main(argv=None):

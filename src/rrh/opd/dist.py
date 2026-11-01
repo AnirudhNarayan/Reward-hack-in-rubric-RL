@@ -205,13 +205,33 @@ def load_sharded_safetensors(model, local_dir: str, di: DistInfo) -> None:
 
 @torch.no_grad()
 def reinit_rotary_buffers(model, device) -> None:
-    """Non-persistent rotary buffers are garbage after meta init + to_empty; recompute them."""
+    """Non-persistent rotary buffers are garbage after meta init + to_empty; recompute them.
+    transformers 4.x stores the init function as ``m.rope_init_fn``; 5.x keeps only ``m.rope_type``
+    (``compute_default_rope_parameters`` or ``ROPE_INIT_FUNCTIONS[rope_type]``) and makes
+    ``original_inv_freq`` a buffer. Raises if no rotary module was found, since skipping this
+    silently gives every token the wrong position encoding."""
+    n = 0
     for m in model.modules():
-        if hasattr(m, "rope_init_fn") and hasattr(m, "inv_freq"):
-            inv_freq, scaling = m.rope_init_fn(m.config, device)
-            m.register_buffer("inv_freq", inv_freq, persistent=False)
+        if not (hasattr(m, "inv_freq") and hasattr(m, "config")):
+            continue
+        fn = getattr(m, "rope_init_fn", None)
+        if fn is None:
+            rope_type = getattr(m, "rope_type", "default")
+            if rope_type == "default" and hasattr(m, "compute_default_rope_parameters"):
+                fn = m.compute_default_rope_parameters
+            else:
+                from transformers.modeling_rope_utils import ROPE_INIT_FUNCTIONS
+                fn = ROPE_INIT_FUNCTIONS[rope_type]
+        inv_freq, scaling = fn(m.config, device)
+        m.register_buffer("inv_freq", inv_freq, persistent=False)
+        if "original_inv_freq" in m._buffers:
+            m.register_buffer("original_inv_freq", inv_freq.clone(), persistent=False)
+        else:
             m.original_inv_freq = inv_freq
-            m.attention_scaling = scaling
+        m.attention_scaling = scaling
+        n += 1
+    if n == 0:
+        raise RuntimeError("no rotary embedding module found to re-initialize (transformers API change?)")
 
 
 def iter_full_state(model, dtype: torch.dtype = torch.bfloat16) -> Iterator[tuple[str, torch.Tensor]]:

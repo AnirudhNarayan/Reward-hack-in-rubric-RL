@@ -110,18 +110,18 @@ def write_outputs(rows: list[dict], out_dir: Path) -> None:
     (out_dir / "metrics" / "judge_agreement.json").write_text(json.dumps(
         {"rows": rows, "paper_fig13_reference": PAPER_FIG13}, indent=2))
     df = pd.DataFrame(rows)
-    df.to_csv(out_dir / "tables" / "judge_agreement.csv", index=False)
+    df.to_csv(out_dir / "tables" / "judge_agreement.csv", index=False, float_format="%.2f")
     cols = [c for c in ["judge", "n_responses", "n_criteria", "all_agreement", "all_fp", "all_fn",
                         "score_reference", "score_judge_standard", "score_judge_final",
                         "score_gap_standard_minus_ref"] if c in df]
     (out_dir / "tables" / "judge_agreement.tex").write_text(
-        df[cols].to_latex(index=False, float_format="%.3f"))
+        df[cols].to_latex(index=False, float_format="%.2f"))
     paper = pd.DataFrame([{"checkpoint": k, "qwen3_32b": v[0], "gpt4o_mini_standard": v[1],
                            "gpt4o_mini_shortcut_aware": v[2], "gap_standard_minus_qwen": v[1] - v[0]}
                           for k, v in PAPER_FIG13.items()])
-    paper.to_csv(out_dir / "tables" / "paper_fig13_reference.csv", index=False)
-    print(df[cols].to_string(index=False))
-    print("\nPaper Fig. 13 (reference):\n" + paper.to_string(index=False))
+    paper.to_csv(out_dir / "tables" / "paper_fig13_reference.csv", index=False, float_format="%.2f")
+    print(df[cols].to_string(index=False, float_format="%.2f"))
+    print("\nPaper Fig. 13 (reference):\n" + paper.to_string(index=False, float_format="%.2f"))
 
 
 def main(argv=None):

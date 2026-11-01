@@ -11,6 +11,11 @@ This repo replicates "Reward Hacking in Rubric-Based Reinforcement Learning" (Sc
   `eval.prune_hf_after_eval` (intermediate HF checkpoints deleted after their eval generations
   exist; the final checkpoint is never deleted). Any other deletion of checkpoints, data or results:
   ask first.
+- Displayed results (printouts, `table1_stage1`/`judge_agreement` CSV + LaTeX, INDEX.csv, figure
+  labels) use 2 decimals (user request 2026-11-01). Raw metrics JSON and `tables/eval_*.csv` (read
+  back by the plots) keep full precision.
+- Before a full run: `scripts/slurm/opd/smoke_2gpu.slurm` (2 GPUs, one node) checks FSDP2 loading,
+  2-rank training with vLLM rollouts, resume and the HF export.
 - Table 1 judge: Gemma-3-27B (self-hosted) until the user provides an OpenAI key; then
   `TABLE1_JUDGE=gpt-4o-mini-judge` (user-approved, ~$2–3 per HealthBench run, DECISIONS.md D11).
 

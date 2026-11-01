@@ -267,7 +267,7 @@ async def grade_run(run: RunDir, judge_alias: str, mode: str, evalsets: list[str
             mp = run.eval_metrics(evalset, jname, step)
             mp.parent.mkdir(parents=True, exist_ok=True)
             mp.write_text(json.dumps(summ, indent=2))
-            print(f"[grade] {jname} {evalset} {step}: n={summ['n']} score={summ['score_mean']:.4f}",
+            print(f"[grade] {jname} {evalset} {step}: n={summ['n']} score={summ['score_mean']:.2f}",
                   flush=True)
 
 

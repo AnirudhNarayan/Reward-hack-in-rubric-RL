@@ -54,5 +54,6 @@ summ = json.loads((rd.path / "metrics" / "summary.json").read_text())
 assert "heldout" in summ, summ
 assert (rd.path / "figures" / "fig2_heldout.png").exists()
 row = [r for r in read_index(rd.results_root) if r["run_id"] == rd.run_id][0]
-print("SMOKE OK", json.dumps(summ["heldout"]), "status:", row["status"])
+show = {k: (round(v, 2) if isinstance(v, float) else v) for k, v in summ["heldout"].items()}
+print("SMOKE OK", json.dumps(show), "status:", row["status"])
 EOF
