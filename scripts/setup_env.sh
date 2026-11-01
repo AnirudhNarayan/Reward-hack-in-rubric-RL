@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
-# One-time environment setup on the cluster (login node is fine: installs only, no compute).
-#   bash scripts/setup_env.sh
+# One-time environment setup on the cluster (installs only, no compute). Run it on a compute node:
+# Newton's login nodes cap threads per user, which breaks conda/pip ("can't start new thread").
+#   srun -p normal -A <account> -c 16 --mem=64G --time=04:00:00 --pty bash
+#   MAX_JOBS=8 bash scripts/setup_env.sh 2>&1 | tee ~/setup_env.log
 set -euo pipefail
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
 ENV_NAME="${ENV_NAME:-rrh}"
@@ -9,16 +11,15 @@ ENV_NAME="${ENV_NAME:-rrh}"
 if [[ -f "$REPO/scripts/cluster.env" ]]; then
   # shellcheck disable=SC1091
   source "$REPO/scripts/cluster.env"
-  # shellcheck disable=SC2086
-  command -v module >/dev/null 2>&1 && [[ -n "${MODULES:-}" ]] && module load $MODULES
   # keep the multi-GB pip cache off $HOME
   [[ -n "${SCRATCH_ROOT:-}" ]] && export PIP_CACHE_DIR="$SCRATCH_ROOT/pip_cache" && mkdir -p "$PIP_CACHE_DIR"
 fi
+# shellcheck disable=SC1091
+source "$REPO/scripts/lib/modules.sh"
+load_cluster_modules
 if ! conda env list | grep -q "^$ENV_NAME "; then
   conda create -y -n "$ENV_NAME" python=3.11
 fi
-# shellcheck disable=SC1091
-source "$(conda info --base)/etc/profile.d/conda.sh"
 conda activate "$ENV_NAME"
 
 # verl pins its own torch / vllm; install it first, then our package on top.

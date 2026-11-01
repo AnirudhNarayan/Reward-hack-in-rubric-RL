@@ -12,13 +12,10 @@ source "$REPO/scripts/cluster.env"
 # shellcheck disable=SC1091
 [[ -f "$REPO/scripts/env.sh" ]] && source "$REPO/scripts/env.sh"
 
-if command -v module >/dev/null 2>&1 && [[ -n "${MODULES:-}" ]]; then
-  # shellcheck disable=SC2086
-  module load $MODULES
-fi
+# shellcheck disable=SC1091
+source "$REPO/scripts/lib/modules.sh"
+load_cluster_modules
 if command -v conda >/dev/null 2>&1; then
-  # shellcheck disable=SC1091
-  source "$(conda info --base)/etc/profile.d/conda.sh"
   conda activate "${CONDA_ENV:-rrh}"
 fi
 
